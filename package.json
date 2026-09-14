@@ -12,8 +12,10 @@
     "vite": "^8.3.0"
   },
   "dependencies": {
+    "@tailwindcss/vite": "^4.3.3",
     "axios": "^1.20.0",
     "fabric": "^7.4.0",
-    "react-router-dom": "^7.18.3"
+    "react-router-dom": "^7.18.3",
+    "tailwindcss": "^4.3.3"
   }
 }
