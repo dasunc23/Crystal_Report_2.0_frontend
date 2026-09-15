@@ -575,6 +575,11 @@ export default function TemplateEditor() {
                 };
             })
         );
+
+        setElementForm((previous) => ({
+            ...previous,
+            [field]: value,
+        }));
     }
 
     function handleFormChange(event) {
@@ -806,6 +811,12 @@ export default function TemplateEditor() {
                         : item
                 )
             );
+
+            setElementForm((previous) => ({
+                ...previous,
+                x_mm: Number(nextX.toFixed(2)),
+                y_mm: Number(nextY.toFixed(2)),
+            }));
         }
 
         function handlePointerUp() {
@@ -891,6 +902,12 @@ export default function TemplateEditor() {
                         : item
                 )
             );
+
+            setElementForm((previous) => ({
+                ...previous,
+                width_mm: Number(nextWidth.toFixed(2)),
+                height_mm: Number(nextHeight.toFixed(2)),
+            }));
         }
 
         function handlePointerUp() {
@@ -1326,8 +1343,13 @@ export default function TemplateEditor() {
                                     ) : (
                                         <span>
                                             {element.type === "manufacture_date"
-                                                ? (element.properties?.text ||
+                                                ? (element.text ||
+                                                      element.properties?.text ||
                                                       "Manufacture Date: {{manufacture_date}}")
+                                                : element.type === "student_name" || element.type === "static_text"
+                                                ? (element.text ||
+                                                      element.properties?.text ||
+                                                      getElementLabel(element))
                                                 : getElementLabel(element)}
                                         </span>
                                     )}
@@ -1387,20 +1409,6 @@ export default function TemplateEditor() {
                         onSubmit={handleAddElement}
                         className="space-y-4"
                     >
-                        <div>
-                            <label className="mb-1 block text-sm font-medium text-slate-700">
-                                Element Name
-                            </label>
-
-                            <input
-                                name="name"
-                                value={elementForm.name}
-                                onChange={handleFormChange}
-                                placeholder="Student Name"
-                                className="w-full rounded-lg border border-slate-300 px-3 py-2"
-                            />
-                        </div>
-
                         <div>
                             <label className="mb-1 block text-sm font-medium text-slate-700">
                                 Element Type
@@ -1466,7 +1474,7 @@ export default function TemplateEditor() {
 
                                     <input
                                         type="number"
-                                        step="0.1"
+                                        step="0.01"
                                         min="0"
                                         name={name}
                                         value={elementForm[name]}
