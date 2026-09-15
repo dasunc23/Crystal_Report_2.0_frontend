@@ -32,6 +32,10 @@ const DEFAULT_FORM = {
     height_mm: 10,
     text: "",
     font_size: 12,
+    text_color: "#111827",
+    background_color: "#ffffff",
+    opacity: 1,
+    show_background: true,
 };
 
 const ELEMENT_DEFAULTS = {
@@ -39,29 +43,41 @@ const ELEMENT_DEFAULTS = {
         width_mm: 25,
         height_mm: 30,
         text: "",
+        show_background: true,
     },
+
     barcode: {
         width_mm: 55,
         height_mm: 12,
         text: "",
+        show_background: true,
     },
+
     student_name: {
         width_mm: 55,
         height_mm: 8,
         text: "Student Name",
+        show_background: false,
     },
+
     student_id: {
         width_mm: 45,
         height_mm: 8,
         text: "Student ID",
+        font_size: 12,
+        text_color: "#111827",
+        box_color: "#FFFFFF",
+        opacity: 100,
+        show_background: true,
     },
+
     static_text: {
         width_mm: 40,
         height_mm: 10,
         text: "Sample Text",
+        show_background: false,
     },
 };
-
 function getResponseData(response) {
     if (!response) {
         return null;
@@ -94,6 +110,17 @@ function getElementList(response) {
     }
 
     return [];
+}
+
+function hexToRgba(hex, opacity = 1) {
+    const value = String(hex || "#ffffff").replace("#", "");
+    const normalized = value.length === 3
+        ? value.split("").map((char) => char + char).join("")
+        : value;
+    const red = parseInt(normalized.substring(0, 2), 16) || 255;
+    const green = parseInt(normalized.substring(2, 4), 16) || 255;
+    const blue = parseInt(normalized.substring(4, 6), 16) || 255;
+    return `rgba(${red}, ${green}, ${blue}, ${Math.max(0, Math.min(1, Number(opacity) || 0))})`;
 }
 
 function normalizeElement(element) {
@@ -144,6 +171,14 @@ function normalizeElement(element) {
         text: element.text || element.properties?.text || "",
         properties: element.properties || {},
         mapping: element.mapping || null,
+        properties: {
+            font_size: 12,
+            text_color: "#111827",
+            background_color: "#ffffff",
+            opacity: 1,
+            show_background: true,
+            ...(element.properties || {}),
+        },
     };
 }
 
@@ -227,6 +262,7 @@ export default function TemplateEditor() {
     const [frontFile, setFrontFile] = useState(null);
     const [backFile, setBackFile] = useState(null);
     const [designPdfFile, setDesignPdfFile] = useState(null);
+    const [deletedElementIds, setDeletedElementIds] = useState([]);
 
     const [loading, setLoading] = useState(true);
     const [uploadingDesign, setUploadingDesign] = useState(false);
@@ -297,6 +333,10 @@ export default function TemplateEditor() {
                 selectedElement.properties?.font_size ||
                 selectedElement.font_size ||
                 12,
+            text_color: selectedElement.properties?.text_color || "#111827",
+            background_color: selectedElement.properties?.background_color || "#ffffff",
+            opacity: Number(selectedElement.properties?.opacity ?? 1),
+            show_background: selectedElement.properties?.show_background !== false,
         });
     }, [selectedElement, activeSide]);
 
@@ -496,6 +536,16 @@ export default function TemplateEditor() {
                     };
                 }
 
+                if (["text_color", "background_color", "opacity", "show_background"].includes(field)) {
+                    return {
+                        ...element,
+                        properties: {
+                            ...(element.properties || {}),
+                            [field]: field === "opacity" ? Number(value) : value,
+                        },
+                    };
+                }
+
                 if (field === "text") {
                     return {
                         ...element,
@@ -535,21 +585,72 @@ export default function TemplateEditor() {
         const defaults =
             ELEMENT_DEFAULTS[type] || ELEMENT_DEFAULTS.static_text;
 
-        setElementForm((previous) => ({
-            ...previous,
+        const nextForm = {
+            ...DEFAULT_FORM,
+            ...elementForm,
             type,
             width_mm: defaults.width_mm,
             height_mm: defaults.height_mm,
             text: defaults.text,
-        }));
+            show_background: defaults.show_background !== false,
+        };
+        setElementForm(nextForm);
+        if (selectedElementId) {
+            Object.entries(nextForm).forEach(([field, value]) => {
+                if (["name", "type", "side", "x_mm", "y_mm", "width_mm", "height_mm", "text", "font_size", "text_color", "background_color", "opacity", "show_background"].includes(field)) {
+                    updateSelectedElement(field, value);
+                }
+            });
+        }
     }
 
     function handleAddElement(event) {
         event.preventDefault();
 
         const defaults =
-            ELEMENT_DEFAULTS[elementForm.type] ||
-            ELEMENT_DEFAULTS.static_text;
+            ELEMENT_DEFAULTS[elementForm.type] || ELEMENT_DEFAULTS.static_text;
+        const nextProperties = {
+            font_size: Number(elementForm.font_size) || 12,
+            text: elementForm.text || defaults.text,
+            text_color: elementForm.text_color || "#111827",
+            background_color: elementForm.background_color || "#ffffff",
+            opacity: Number(elementForm.opacity ?? 1),
+            show_background: elementForm.show_background !== false,
+        };
+
+        // When an element is selected, this button updates that element instead
+        // of creating a duplicate. Changes remain local until Save Template.
+        if (selectedElementId) {
+            setElements((previous) =>
+                previous.map((element) =>
+                    String(element.id) === String(selectedElementId)
+                        ? normalizeElement({
+                              ...element,
+                              name:
+                                  elementForm.name.trim() ||
+                                  getElementLabel({
+                                      type: elementForm.type,
+                                      text: elementForm.text || defaults.text,
+                                  }),
+                              type: elementForm.type,
+                              side: elementForm.side || element.side || activeSide,
+                              x_mm: Number(elementForm.x_mm) || 0,
+                              y_mm: Number(elementForm.y_mm) || 0,
+                              width_mm: Number(elementForm.width_mm) || defaults.width_mm,
+                              height_mm: Number(elementForm.height_mm) || defaults.height_mm,
+                              text: elementForm.text || defaults.text,
+                              properties: {
+                                  ...(element.properties || {}),
+                                  ...nextProperties,
+                              },
+                          })
+                        : element
+                )
+            );
+            setSuccess("Element updated locally. Click Save Template to save it.");
+            setError("");
+            return;
+        }
 
         const newElement = normalizeElement({
             id: `temporary-${Date.now()}`,
@@ -563,27 +664,17 @@ export default function TemplateEditor() {
             side: activeSide,
             x_mm: Number(elementForm.x_mm) || 0,
             y_mm: Number(elementForm.y_mm) || 0,
-            width_mm:
-                Number(elementForm.width_mm) ||
-                defaults.width_mm,
-            height_mm:
-                Number(elementForm.height_mm) ||
-                defaults.height_mm,
+            width_mm: Number(elementForm.width_mm) || defaults.width_mm,
+            height_mm: Number(elementForm.height_mm) || defaults.height_mm,
             text: elementForm.text || defaults.text,
             visible: true,
             z_index: elements.length + 1,
-            properties: {
-                font_size: Number(elementForm.font_size) || 12,
-                text: elementForm.text || defaults.text,
-            },
+            properties: nextProperties,
         });
 
         setElements((previous) => [...previous, newElement]);
         setSelectedElementId(newElement.id);
-
-        setSuccess(
-            "Element added locally. Click Save Template to save it."
-        );
+        setSuccess("Element added locally. Click Save Template to save it.");
         setError("");
     }
 
@@ -592,10 +683,20 @@ export default function TemplateEditor() {
             return;
         }
 
+        const existingElement = elements.find(
+            (element) => String(element.id) === String(elementId)
+        );
+        if (existingElement?.id && !String(existingElement.id).startsWith("temporary-")) {
+            setDeletedElementIds((previous) =>
+                previous.includes(existingElement.id)
+                    ? previous
+                    : [...previous, existingElement.id]
+            );
+        }
+
         setElements((previous) =>
             previous.filter(
-                (element) =>
-                    String(element.id) !== String(elementId)
+                (element) => String(element.id) !== String(elementId)
             )
         );
 
@@ -812,6 +913,7 @@ export default function TemplateEditor() {
                 width_mm: widthMm,
                 height_mm: heightMm,
 
+                delete_element_ids: deletedElementIds,
                 elements: elements.map((element) => ({
                     ...(String(element.id).startsWith("temporary-")
                         ? {}
@@ -860,9 +962,8 @@ export default function TemplateEditor() {
                 normalizeElement
             );
 
-            if (savedElements.length > 0) {
-                setElements(savedElements);
-            }
+            setElements(savedElements);
+            setDeletedElementIds([]);
 
             setSuccess(
                 "Template configuration saved successfully."
@@ -1111,6 +1212,12 @@ export default function TemplateEditor() {
                     <div className="flex min-h-[500px] items-center justify-center overflow-auto rounded-lg bg-slate-300 p-4">
                         <div
                             ref={canvasRef}
+                            onPointerDown={(event) => {
+                                if (event.target === event.currentTarget) {
+                                    setSelectedElementId(null);
+                                    setSuccess("");
+                                }
+                            }}
                             className="relative overflow-hidden border-2 border-slate-400 bg-white shadow-xl"
                             style={{
                                 width: "min(100%, 650px)",
@@ -1138,12 +1245,14 @@ export default function TemplateEditor() {
                                             element
                                         )
                                     }
-                                    className={`absolute select-none overflow-visible border border-dashed px-1 ${
-                                        String(
-                                            selectedElementId
-                                        ) === String(element.id)
-                                            ? "border-[#1688bd] bg-[#eaf7fc]/70"
-                                            : "border-slate-400/70 bg-white/30"
+                                    className={`absolute select-none overflow-visible ${
+                                        ["static_text", "student_name", "student_id"].includes(element.type)
+                                            ? ""
+                                            : "border border-dashed px-1"
+                                    } ${
+                                        String(selectedElementId) === String(element.id)
+                                            ? "ring-2 ring-[#1688bd] ring-offset-1"
+                                            : ""
                                     }`}
                                     style={{
                                         left: `${
@@ -1164,10 +1273,14 @@ export default function TemplateEditor() {
                                             100
                                         }%`,
                                         zIndex: element.z_index,
-                                        fontSize: `${
-                                            element.properties
-                                                ?.font_size || 12
-                                        }px`,
+                                        fontSize: `${element.properties?.font_size || 12}px`,
+                                        color: element.properties?.text_color || "#111827",
+                                        backgroundColor: element.properties?.show_background === false
+                                            ? "transparent"
+                                            : hexToRgba(
+                                                  element.properties?.background_color || "#ffffff",
+                                                  element.properties?.opacity ?? 1
+                                              ),
                                     }}
                                 >
                                     {element.type === "photo" ? (
@@ -1178,10 +1291,16 @@ export default function TemplateEditor() {
                                         <div className="flex h-full items-center justify-center text-xs font-mono text-slate-700">
                                             ||| || |||| |||
                                         </div>
+                                    ) : element.type === "student_id" ? (
+                                        <div className="grid h-full w-full grid-cols-8 gap-px">
+                                            {Array.from({ length: 8 }).map((_, index) => (
+                                                <div key={index} className="flex items-center justify-center border border-current text-[0.65em]">
+                                                    {index + 1}
+                                                </div>
+                                            ))}
+                                        </div>
                                     ) : (
-                                        <span>
-                                            {getElementLabel(element)}
-                                        </span>
+                                        <span>{getElementLabel(element)}</span>
                                     )}
 
                                     {String(
@@ -1341,12 +1460,33 @@ export default function TemplateEditor() {
                             />
                         </div>
 
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <label className="mb-1 block text-sm font-medium text-slate-700">Text Color</label>
+                                <input type="color" name="text_color" value={elementForm.text_color} onChange={handleFormChange} className="h-10 w-full rounded-lg border border-slate-300" />
+                            </div>
+                            <div>
+                                <label className="mb-1 block text-sm font-medium text-slate-700">Box Color</label>
+                                <input type="color" name="background_color" value={elementForm.background_color} onChange={handleFormChange} className="h-10 w-full rounded-lg border border-slate-300" />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="mb-1 block text-sm font-medium text-slate-700">Box Opacity: {Math.round(Number(elementForm.opacity) * 100)}%</label>
+                            <input type="range" min="0" max="1" step="0.05" name="opacity" value={elementForm.opacity} onChange={handleFormChange} className="w-full" />
+                        </div>
+
+                        <label className="flex items-center gap-2 text-sm text-slate-700">
+                            <input type="checkbox" name="show_background" checked={elementForm.show_background} onChange={(event) => handleFormChange({ target: { name: "show_background", value: event.target.checked } })} />
+                            Show background box
+                        </label>
+
                         <button
                             type="submit"
                             className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#1688bd] px-4 py-2 text-white hover:bg-[#11739f]"
                         >
-                            <Plus size={18} />
-                            Add Element
+                            {selectedElement ? <Save size={18} /> : <Plus size={18} />}
+                            {selectedElement ? "Update Element" : "Add Element"}
                         </button>
 
                         {selectedElement && (
@@ -1369,3 +1509,4 @@ export default function TemplateEditor() {
         </div>
     );
 }
+
