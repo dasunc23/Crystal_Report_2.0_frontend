@@ -1,0 +1,28 @@
+@import "tailwindcss";
+
+:root {
+    --crystal-blue: #1688bd;
+    --crystal-dark-blue: #07345d;
+    --crystal-light-blue: #eaf7fc;
+    --crystal-border: #d8e8f0;
+    --crystal-text: #17324d;
+    --crystal-muted: #6b7d8c;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+    min-width: 320px;
+    min-height: 100%;
+}
+
+body {
+    margin: 0;
+    background: #f4f9fc;
+    color: var(--crystal-text);
+    font-family: Arial, Helvetica, sans-serif;
+}
