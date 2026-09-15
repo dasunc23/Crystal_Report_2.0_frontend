@@ -45,32 +45,38 @@ const ELEMENT_DEFAULTS = {
         text: "",
         show_background: true,
     },
-
     barcode: {
         width_mm: 55,
         height_mm: 12,
         text: "",
         show_background: true,
     },
-
     student_name: {
         width_mm: 55,
         height_mm: 8,
         text: "Student Name",
         show_background: false,
     },
-
     student_id: {
         width_mm: 45,
         height_mm: 8,
         text: "Student ID",
         font_size: 12,
         text_color: "#111827",
-        box_color: "#FFFFFF",
-        opacity: 100,
+        background_color: "#ffffff",
+        opacity: 1,
         show_background: true,
     },
-
+    manufacture_date: {
+        width_mm: 45,
+        height_mm: 8,
+        text: "Manufacture Date: {{manufacture_date}}",
+        font_size: 10,
+        text_color: "#111827",
+        background_color: "#ffffff",
+        opacity: 0,
+        show_background: false,
+    },
     static_text: {
         width_mm: 40,
         height_mm: 10,
@@ -78,6 +84,7 @@ const ELEMENT_DEFAULTS = {
         show_background: false,
     },
 };
+
 function getResponseData(response) {
     if (!response) {
         return null;
@@ -169,14 +176,13 @@ function normalizeElement(element) {
         visible: element.visible !== false,
         z_index: Number(element.z_index ?? 1),
         text: element.text || element.properties?.text || "",
-        properties: element.properties || {},
         mapping: element.mapping || null,
         properties: {
             font_size: 12,
             text_color: "#111827",
             background_color: "#ffffff",
             opacity: 1,
-            show_background: true,
+            show_background: element.type === "manufacture_date" ? false : true,
             ...(element.properties || {}),
         },
     };
@@ -197,6 +203,10 @@ function getElementLabel(element) {
 
     if (element.type === "student_id") {
         return "Student ID";
+    }
+
+    if (element.type === "manufacture_date") {
+        return "Manufacture Date";
     }
 
     return element.text || element.name || "Element";
@@ -592,6 +602,10 @@ export default function TemplateEditor() {
             width_mm: defaults.width_mm,
             height_mm: defaults.height_mm,
             text: defaults.text,
+            font_size: defaults.font_size ?? elementForm.font_size ?? 12,
+            text_color: defaults.text_color ?? elementForm.text_color ?? "#111827",
+            background_color: defaults.background_color ?? elementForm.background_color ?? "#ffffff",
+            opacity: defaults.opacity ?? elementForm.opacity ?? 1,
             show_background: defaults.show_background !== false,
         };
         setElementForm(nextForm);
@@ -1246,7 +1260,7 @@ export default function TemplateEditor() {
                                         )
                                     }
                                     className={`absolute select-none overflow-visible ${
-                                        ["static_text", "student_name", "student_id"].includes(element.type)
+                                        ["static_text", "student_name", "student_id", "manufacture_date"].includes(element.type)
                                             ? ""
                                             : "border border-dashed px-1"
                                     } ${
@@ -1275,12 +1289,15 @@ export default function TemplateEditor() {
                                         zIndex: element.z_index,
                                         fontSize: `${element.properties?.font_size || 12}px`,
                                         color: element.properties?.text_color || "#111827",
-                                        backgroundColor: element.properties?.show_background === false
-                                            ? "transparent"
-                                            : hexToRgba(
-                                                  element.properties?.background_color || "#ffffff",
-                                                  element.properties?.opacity ?? 1
-                                              ),
+                                        backgroundColor:
+                                            element.type === "student_id"
+                                                ? "#ffffff"
+                                                : element.type === "manufacture_date" || element.properties?.show_background === false
+                                                ? "transparent"
+                                                : hexToRgba(
+                                                      element.properties?.background_color || "#ffffff",
+                                                      element.properties?.opacity ?? 1
+                                                  ),
                                     }}
                                 >
                                     {element.type === "photo" ? (
@@ -1294,13 +1311,25 @@ export default function TemplateEditor() {
                                     ) : element.type === "student_id" ? (
                                         <div className="grid h-full w-full grid-cols-8 gap-px">
                                             {Array.from({ length: 8 }).map((_, index) => (
-                                                <div key={index} className="flex items-center justify-center border border-current text-[0.65em]">
+                                                <div
+                                                    key={index}
+                                                    className="flex items-center justify-center border border-slate-400 text-[0.65em]"
+                                                    style={{
+                                                        backgroundColor: "#ffffff",
+                                                        color: element.properties?.text_color || "#111827",
+                                                    }}
+                                                >
                                                     {index + 1}
                                                 </div>
                                             ))}
                                         </div>
                                     ) : (
-                                        <span>{getElementLabel(element)}</span>
+                                        <span>
+                                            {element.type === "manufacture_date"
+                                                ? (element.properties?.text ||
+                                                      "Manufacture Date: {{manufacture_date}}")
+                                                : getElementLabel(element)}
+                                        </span>
                                     )}
 
                                     {String(
@@ -1393,6 +1422,10 @@ export default function TemplateEditor() {
 
                                 <option value="student_id">
                                     Student ID
+                                </option>
+
+                                <option value="manufacture_date">
+                                    Manufacture Date
                                 </option>
 
                                 <option value="photo">
