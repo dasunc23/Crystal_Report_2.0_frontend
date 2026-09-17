@@ -8,6 +8,8 @@ import {
 import Projects from "../pages/Projects";
 import ProjectDetails from "../pages/ProjectDetails";
 import TemplateEditor from "../pages/TemplateEditor";
+import ExcelUploadPage from "../pages/ExcelUploadPage";
+import BulkGenerationPage from "../pages/BulkGenerationPage";
 
 export default function AppRoutes() {
     const navigate = useNavigate();
@@ -53,6 +55,16 @@ export default function AppRoutes() {
             <Route
                 path="*"
                 element={<Navigate to="/" replace />}
+            />
+
+            <Route
+                path="/projects/:projectId/excel-upload"
+                element={<ExcelUploadPage />}
+            />
+
+            <Route
+                path="/projects/:projectId/bulk-generation"
+                element={<BulkGenerationPage />}
             />
         </Routes>
     );
