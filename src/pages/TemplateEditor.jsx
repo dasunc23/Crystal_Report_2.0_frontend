@@ -12,6 +12,7 @@ import {
     User,
     CreditCard,
     Upload,
+    FileSpreadsheet,
     RefreshCw,
 } from "lucide-react";
 
@@ -419,8 +420,10 @@ export default function TemplateEditor() {
             previewUrlsRef.current.push(imageUrl);
 
             if (side === "front") {
+                if (frontPreview) URL.revokeObjectURL(frontPreview);
                 setFrontPreview(imageUrl);
             } else {
+                if (backPreview) URL.revokeObjectURL(backPreview);
                 setBackPreview(imageUrl);
             }
         } catch (requestError) {
@@ -638,7 +641,8 @@ export default function TemplateEditor() {
         };
 
         // When an element is selected, this button updates that element instead
-        // of creating a duplicate. Changes remain local until Save Template.
+        // of creating a duplicate. Changes remain local until 
+        // .
         if (selectedElementId) {
             setElements((previous) =>
                 previous.map((element) =>
@@ -1023,6 +1027,27 @@ export default function TemplateEditor() {
         );
     }
 
+    function handleUploadExcel() {
+        if (!projectId || !templateId) {
+            setError(
+                "Unable to open Excel upload because the project or template ID is missing."
+            );
+            setSuccess("");
+            return;
+        }
+
+        navigate(`/projects/${projectId}/excel-upload`, {
+            state: {
+                projectId: String(projectId),
+                templateId: String(templateId),
+                templateName:
+                    template?.name ||
+                    template?.template_name ||
+                    `Template ${templateId}`,
+            },
+        });
+    }
+
     return (
         <div className="min-h-screen bg-slate-100">
             <header className="border-b border-slate-200 bg-white px-4 py-4 sm:px-6">
@@ -1049,16 +1074,26 @@ export default function TemplateEditor() {
                         </div>
                     </div>
 
-                    <button
-                        type="button"
-                        onClick={handleSaveTemplate}
-                        disabled={saving}
-                        className="flex items-center gap-2 rounded-lg bg-[#1688bd] px-4 py-2 text-white hover:bg-[#11739f] disabled:opacity-50"
-                    >
-                        <Save size={18} />
+                    <div className="flex items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={handleUploadExcel}
+                            className="flex items-center gap-2 rounded-lg border border-[#1688bd] bg-white px-4 py-2 font-medium text-[#1688bd] transition hover:bg-[#eaf7fc] focus:outline-none focus:ring-2 focus:ring-[#1688bd] focus:ring-offset-2"
+                        >
+                            <FileSpreadsheet size={18} />
+                            Upload Excel
+                        </button>
 
-                        {saving ? "Saving..." : "Save Template"}
-                    </button>
+                        <button
+                            type="button"
+                            onClick={handleSaveTemplate}
+                            disabled={saving}
+                            className="flex items-center gap-2 rounded-lg bg-[#1688bd] px-4 py-2 font-medium text-white transition hover:bg-[#11739f] focus:outline-none focus:ring-2 focus:ring-[#1688bd] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                            <Save size={18} />
+                            {saving ? "Saving..." : "Save Template"}
+                        </button>
+                    </div>
                 </div>
             </header>
 
@@ -1107,6 +1142,7 @@ export default function TemplateEditor() {
                                     accept="image/png,image/jpeg,image/webp,application/pdf"
                                     onChange={(event) => {
                                         setFrontFile(event.target.files?.[0] || null);
+                                        setDesignPdfFile(null);
                                     }}
                                 />
                             </div>
@@ -1119,6 +1155,7 @@ export default function TemplateEditor() {
                                     accept="image/png,image/jpeg,image/webp,application/pdf"
                                     onChange={(event) => {
                                         setBackFile(event.target.files?.[0] || null);
+                                        setDesignPdfFile(null);
                                     }}
                                 />
                             </div>
