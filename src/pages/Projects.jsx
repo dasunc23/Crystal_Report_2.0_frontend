@@ -256,10 +256,6 @@ export default function Projects({ onOpenProject }) {
                         Your Projects
                     </h3>
 
-                    <p className="mt-1 text-sm text-[#6b7d8c]">
-                        Select a project to manage its templates and
-                        student records.
-                    </p>
                 </div>
 
                 <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-[#6b7d8c] shadow-sm ring-1 ring-[#d8e8f0]">
@@ -348,12 +344,6 @@ export default function Projects({ onOpenProject }) {
                                 </div>
 
                                 <div className="mt-auto pt-6">
-                                    <div className="mb-5 flex items-center justify-end gap-3">
-                                        <span className="text-xs text-[#6b7d8c]">
-                                            ID #{project.id}
-                                        </span>
-                                    </div>
-
                                     <button
                                         type="button"
                                         onClick={() =>

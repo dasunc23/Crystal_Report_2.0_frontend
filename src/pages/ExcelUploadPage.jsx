@@ -19,7 +19,7 @@ import {
 
 import {
     getTemplatesByProject,
-    getTemplateElements,
+    getTemplateConfiguration,
 } from "../api/templateApi";
 
 function unwrapResponse(response) {
@@ -260,7 +260,7 @@ export default function ExcelUploadPage() {
                 setLoadingElements(true);
                 setErrorMessage("");
 
-                const response = await getTemplateElements(
+                const response = await getTemplateConfiguration(
                     projectId,
                     selectedTemplateId
                 );
@@ -581,23 +581,6 @@ export default function ExcelUploadPage() {
                             <div className="mt-5 flex flex-wrap gap-3">
                                 <button
                                     type="button"
-                                    onClick={handlePreview}
-                                    disabled={!selectedFile || processing}
-                                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#1688bd] bg-white px-5 py-3 text-sm font-semibold text-[#1688bd] transition hover:bg-[#eaf7fc] focus:outline-none focus:ring-2 focus:ring-[#1688bd]/30 disabled:cursor-not-allowed disabled:opacity-50"
-                                >
-                                    {processing ? (
-                                        <RefreshCw
-                                            size={18}
-                                            className="animate-spin"
-                                        />
-                                    ) : (
-                                        <Eye size={18} />
-                                    )}
-                                    Preview Excel
-                                </button>
-
-                                <button
-                                    type="button"
                                     onClick={handleImport}
                                     disabled={
                                         !selectedFile ||
@@ -700,10 +683,6 @@ export default function ExcelUploadPage() {
                             <h2 className="mb-2 text-lg font-bold text-[#07345d]">
                                 Column Mapping
                             </h2>
-                            <p className="mb-5 text-sm leading-6 text-slate-500">
-                                Connect Excel columns to the dynamic fields in
-                                the selected card template.
-                            </p>
 
                             {loadingElements ? (
                                 <div className="flex items-center gap-2 text-sm text-slate-500">

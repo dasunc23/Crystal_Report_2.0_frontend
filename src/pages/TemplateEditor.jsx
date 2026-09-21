@@ -71,11 +71,11 @@ const ELEMENT_DEFAULTS = {
     manufacture_date: {
         width_mm: 45,
         height_mm: 8,
-        text: "Manufacture Date: DD/MM/YYYY",
+        text: "Manufacture Date: {{manufacture_date}}",
         font_size: 10,
         text_color: "#111827",
         background_color: "#ffffff",
-        opacity: 0,
+        opacity: 1,
         show_background: false,
     },
     static_text: {
@@ -146,7 +146,11 @@ function normalizeElement(element) {
         side: element.side || "front",
         type,
         name: element.name || "",
-        field_name: element.field_name || (type === "photo" ? "photo" : null),
+        field_name:
+            element.field_name ||
+            (type === "photo" || type === "manufacture_date"
+                ? type
+                : null),
 
         x_mm: Number(
             element.x_mm ??
@@ -182,11 +186,18 @@ function normalizeElement(element) {
 
         visible: element.visible !== false,
         z_index: Number(element.z_index ?? 1),
-        text: element.text || element.properties?.text || "",
+        text:
+            element.text ||
+            element.properties?.text ||
+            (type === "manufacture_date"
+                ? "Manufacture Date: {{manufacture_date}}"
+                : ""),
         mapping:
             mapping ||
             (type === "photo"
                 ? { source_field: "photo", is_required: false }
+                : type === "manufacture_date"
+                ? { source_field: "manufacture_date", is_required: false }
                 : null),
         properties: {
             font_size: 12,
@@ -195,6 +206,9 @@ function normalizeElement(element) {
             opacity: 1,
             show_background: element.type === "manufacture_date" ? false : true,
             ...(element.properties || {}),
+            ...(type === "manufacture_date"
+                ? { opacity: 1, show_background: false }
+                : {}),
         },
     };
 }
@@ -669,11 +683,18 @@ export default function TemplateEditor() {
                               field_name:
                                   elementForm.type === "photo"
                                       ? "photo"
+                                      : elementForm.type === "manufacture_date"
+                                      ? "manufacture_date"
                                       : element.field_name || null,
                               mapping:
                                   elementForm.type === "photo"
                                       ? {
                                             source_field: "photo",
+                                            is_required: false,
+                                        }
+                                      : elementForm.type === "manufacture_date"
+                                      ? {
+                                            source_field: "manufacture_date",
                                             is_required: false,
                                         }
                                       : element.mapping || null,
@@ -706,10 +727,19 @@ export default function TemplateEditor() {
                 }),
             type: elementForm.type,
             field_name:
-                elementForm.type === "photo" ? "photo" : null,
+                elementForm.type === "photo"
+                    ? "photo"
+                    : elementForm.type === "manufacture_date"
+                    ? "manufacture_date"
+                    : null,
             mapping:
                 elementForm.type === "photo"
                     ? { source_field: "photo", is_required: false }
+                    : elementForm.type === "manufacture_date"
+                    ? {
+                          source_field: "manufacture_date",
+                          is_required: false,
+                      }
                     : null,
             side: activeSide,
             x_mm: Number(elementForm.x_mm) || 0,
@@ -984,33 +1014,54 @@ export default function TemplateEditor() {
                     side: element.side,
                     type: element.type,
                     name: element.name || null,
-                    field_name: element.field_name || null,
+                    field_name:
+                        element.type === "manufacture_date"
+                            ? "manufacture_date"
+                            : element.field_name || null,
 
                     x_mm: Number(element.x_mm),
                     y_mm: Number(element.y_mm),
-                    width_mm: Number(element.width_mm),
-                    height_mm: Number(element.height_mm),
+                    width_mm:
+                        element.type === "manufacture_date"
+                            ? Math.max(30, Number(element.width_mm))
+                            : Number(element.width_mm),
+                    height_mm:
+                        element.type === "manufacture_date"
+                            ? Math.max(5, Number(element.height_mm))
+                            : Number(element.height_mm),
 
-                    visible: element.visible !== false,
+                    visible:
+                        element.type === "manufacture_date"
+                            ? true
+                            : element.visible !== false,
 
                     properties: {
                         ...(element.properties || {}),
                         ...(element.text
                             ? { text: element.text }
                             : {}),
+                        ...(element.type === "manufacture_date"
+                            ? { opacity: 1, show_background: false }
+                            : {}),
                     },
 
                     z_index: Number(element.z_index || 1),
 
-                    mapping: element.mapping
-                        ? {
-                              source_field:
-                                  element.mapping.source_field,
-                              is_required:
-                                  element.mapping.is_required ??
-                                  false,
-                          }
-                        : null,
+                    mapping:
+                        element.type === "manufacture_date"
+                            ? {
+                                  source_field: "manufacture_date",
+                                  is_required: false,
+                              }
+                            : element.mapping
+                            ? {
+                                  source_field:
+                                      element.mapping.source_field,
+                                  is_required:
+                                      element.mapping.is_required ??
+                                      false,
+                              }
+                            : null,
                 })),
             };
 
@@ -1135,62 +1186,168 @@ export default function TemplateEditor() {
                             onSubmit={handleDesignUpload}
                             className="space-y-4"
                         >
+                            {/* Two-page PDF */}
                             <div>
-                                <label className="mb-1 block text-sm font-medium text-slate-700">
+                                <label className="mb-2 block text-sm font-medium text-slate-700">
                                     Two-page PDF
                                 </label>
 
-                                <input
-                                    type="file"
-                                    accept=".pdf"
-                                    onChange={(event) =>
-                                        handleUploadFileChange(
-                                            event,
-                                            "pdf"
-                                        )
-                                    }
-                                    className="w-full text-sm"
-                                />
+                                <label
+                                    htmlFor="design-pdf"
+                                    className="group flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-[#1688bd] bg-[#f4fbfe] px-4 py-5 text-center transition hover:bg-[#eaf7fc]"
+                                >
+                                    <Upload
+                                        size={26}
+                                        className="mb-2 text-[#1688bd]"
+                                    />
 
-                                <p className="mt-1 text-xs text-slate-500">
-                                    Page 1 is front and page 2 is back.
-                                </p>
+                                    <span className="text-sm font-semibold text-[#07345d]">
+                                        Upload Two-Page PDF
+                                    </span>
+
+                                    <span className="mt-1 text-xs text-slate-500">
+                                        Click to browse
+                                    </span>
+
+                                    <input
+                                        id="design-pdf"
+                                        type="file"
+                                        accept=".pdf"
+                                        onChange={(event) =>
+                                            handleUploadFileChange(
+                                                event,
+                                                "pdf"
+                                            )
+                                        }
+                                        className="hidden"
+                                    />
+                                </label>
+
+                                {designPdfFile && (
+                                    <div className="mt-2 flex items-center gap-2 rounded-lg bg-green-50 px-3 py-2 text-sm text-green-700">
+                                        <span>✓</span>
+                                        <span className="min-w-0 flex-1 truncate">
+                                            {designPdfFile.name}
+                                        </span>
+                                    </div>
+                                )}
+
                             </div>
 
-                            <div className="border-t border-slate-200 pt-4 text-center text-xs text-slate-500">
-                                OR upload separate designs
+                            {/* OR */}
+                            <div className="flex items-center gap-3 py-1">
+                                <div className="h-px flex-1 bg-slate-200"></div>
+
+                                <span className="text-xs font-medium text-slate-400">
+                                    OR
+                                </span>
+
+                                <div className="h-px flex-1 bg-slate-200"></div>
                             </div>
 
+                            <p className="text-center text-xs text-slate-500">
+                                Upload front and back designs separately
+                            </p>
+
+                            {/* Front Design */}
                             <div>
-                                <label>Front Design</label>
+                                <label className="mb-2 block text-sm font-medium text-slate-700">
+                                    Front Design
+                                </label>
 
-                                <input
-                                    type="file"
-                                    accept="image/png,image/jpeg,image/webp,application/pdf"
-                                    onChange={(event) => {
-                                        setFrontFile(event.target.files?.[0] || null);
-                                        setDesignPdfFile(null);
-                                    }}
-                                />
+                                <label
+                                    htmlFor="front-design"
+                                    className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-center transition hover:border-[#1688bd] hover:bg-[#f4fbfe]"
+                                >
+                                    <Upload
+                                        size={24}
+                                        className="mb-2 text-[#1688bd]"
+                                    />
+
+                                    <span className="text-sm font-semibold text-[#07345d]">
+                                        Upload Front Design
+                                    </span>
+
+                                    <span className="mt-1 text-xs text-slate-500">
+                                        Click to browse
+                                    </span>
+
+                                    <input
+                                        id="front-design"
+                                        type="file"
+                                        accept="image/png,image/jpeg,image/webp,application/pdf"
+                                        onChange={(event) =>
+                                            handleUploadFileChange(
+                                                event,
+                                                "front"
+                                            )
+                                        }
+                                        className="hidden"
+                                    />
+                                </label>
+
+                                {frontFile && (
+                                    <div className="mt-2 flex items-center gap-2 rounded-lg bg-green-50 px-3 py-2 text-sm text-green-700">
+                                        <span>✓</span>
+                                        <span className="min-w-0 flex-1 truncate">
+                                            {frontFile.name}
+                                        </span>
+                                    </div>
+                                )}
                             </div>
 
+                            {/* Back Design */}
                             <div>
-                                <label>Back Design</label>
+                                <label className="mb-2 block text-sm font-medium text-slate-700">
+                                    Back Design
+                                </label>
 
-                                <input
-                                    type="file"
-                                    accept="image/png,image/jpeg,image/webp,application/pdf"
-                                    onChange={(event) => {
-                                        setBackFile(event.target.files?.[0] || null);
-                                        setDesignPdfFile(null);
-                                    }}
-                                />
+                                <label
+                                    htmlFor="back-design"
+                                    className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-center transition hover:border-[#1688bd] hover:bg-[#f4fbfe]"
+                                >
+                                    <Upload
+                                        size={24}
+                                        className="mb-2 text-[#1688bd]"
+                                    />
+
+                                    <span className="text-sm font-semibold text-[#07345d]">
+                                        Upload Back Design
+                                    </span>
+
+                                    <span className="mt-1 text-xs text-slate-500">
+                                        Click to browse
+                                    </span>
+
+                                    <input
+                                        id="back-design"
+                                        type="file"
+                                        accept="image/png,image/jpeg,image/webp,application/pdf"
+                                        onChange={(event) =>
+                                            handleUploadFileChange(
+                                                event,
+                                                "back"
+                                            )
+                                        }
+                                        className="hidden"
+                                    />
+                                </label>
+
+                                {backFile && (
+                                    <div className="mt-2 flex items-center gap-2 rounded-lg bg-green-50 px-3 py-2 text-sm text-green-700">
+                                        <span>✓</span>
+                                        <span className="min-w-0 flex-1 truncate">
+                                            {backFile.name}
+                                        </span>
+                                    </div>
+                                )}
                             </div>
 
+                            {/* Upload button */}
                             <button
                                 type="submit"
                                 disabled={uploadingDesign}
-                                className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#1688bd] px-4 py-2 text-white hover:bg-[#11739f] disabled:opacity-50"
+                                className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#1688bd] px-4 py-2.5 text-white transition hover:bg-[#11739f] disabled:opacity-50"
                             >
                                 {uploadingDesign ? (
                                     <RefreshCw

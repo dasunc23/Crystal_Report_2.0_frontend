@@ -15,7 +15,6 @@ import {
 } from "lucide-react";
 
 import {
-    generateStudentBarcodes,
     getProjectStudents,
     uploadStudentPhotos,
 } from "../api/studentApi";
@@ -130,10 +129,6 @@ export default function BulkGenerationPage() {
 
     const [photoFiles, setPhotoFiles] = useState([]);
     const [photoSummary, setPhotoSummary] = useState(null);
-    const [students, setStudents] = useState(
-        Array.isArray(location.state?.students) ? location.state.students : []
-    );
-    const [loadingStudents, setLoadingStudents] = useState(false);
     const [summary, setSummary] = useState(importResult);
     const [generationJob, setGenerationJob] = useState(null);
     const [pdfPreviewUrl, setPdfPreviewUrl] = useState("");
@@ -142,7 +137,6 @@ export default function BulkGenerationPage() {
     const pdfPreviewFrameRef = useRef(null);
 
     const [loadingPhotos, setLoadingPhotos] = useState(false);
-    const [generatingBarcodes, setGeneratingBarcodes] = useState(false);
     const [loadingPreview, setLoadingPreview] = useState(false);
     const [startingGeneration, setStartingGeneration] = useState(false);
     const [loadingStatus, setLoadingStatus] = useState(false);
@@ -227,49 +221,8 @@ export default function BulkGenerationPage() {
     async function refreshStudents() {
         const response = await getProjectStudents(projectId);
         const records = getStudentRecords(unwrap(response));
-        setStudents(records);
         return records;
     }
-
-    useEffect(() => {
-        let cancelled = false;
-
-        async function loadStudents() {
-            if (!projectId || students.length > 0) {
-                return;
-            }
-
-            try {
-                setLoadingStudents(true);
-                const response = await getProjectStudents(projectId);
-                const payload = unwrap(response);
-                const records = getStudentRecords(payload);
-
-                if (!cancelled) {
-                    setStudents(records);
-                }
-            } catch (requestError) {
-                if (!cancelled) {
-                    setError(
-                        errorMessage(
-                            requestError,
-                            "Unable to load the imported students."
-                        )
-                    );
-                }
-            } finally {
-                if (!cancelled) {
-                    setLoadingStudents(false);
-                }
-            }
-        }
-
-        loadStudents();
-
-        return () => {
-            cancelled = true;
-        };
-    }, [projectId, students.length]);
 
     useEffect(() => {
         return () => {
@@ -326,37 +279,6 @@ export default function BulkGenerationPage() {
             );
         } finally {
             setLoadingPhotos(false);
-        }
-    }
-
-    async function generateBarcodes() {
-        if (!projectId) {
-            setError("Project ID is missing.");
-            return;
-        }
-
-        try {
-            setGeneratingBarcodes(true);
-            clearMessages();
-
-            const result = await generateStudentBarcodes(projectId);
-            const response = unwrap(result) || {};
-
-            setSuccess(
-                response.message ||
-                    "Student barcodes generated successfully."
-            );
-
-            await refreshStudents();
-        } catch (requestError) {
-            setError(
-                errorMessage(
-                    requestError,
-                    "Unable to generate student barcodes."
-                )
-            );
-        } finally {
-            setGeneratingBarcodes(false);
         }
     }
 
@@ -695,86 +617,6 @@ export default function BulkGenerationPage() {
                         </section>
 
                         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-                            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                                <div>
-                                    <h2 className="text-lg font-bold text-[#07345d]">
-                                        Imported Students
-                                    </h2>
-                                    <p className="text-sm text-slate-500">
-                                        {loadingStudents
-                                            ? "Loading persisted student records..."
-                                            : `${students.length} student record(s) available for generation.`}
-                                    </p>
-                                </div>
-
-                                <button
-                                    type="button"
-                                    onClick={generateBarcodes}
-                                    disabled={
-                                        loadingStudents ||
-                                        generatingBarcodes ||
-                                        students.length === 0
-                                    }
-                                    className="inline-flex items-center gap-2 rounded-xl border border-[#1688bd] bg-white px-4 py-2 text-sm font-semibold text-[#1688bd] transition hover:bg-[#eaf7fc] disabled:cursor-not-allowed disabled:opacity-50"
-                                >
-                                    {generatingBarcodes ? (
-                                        <Loader2 size={17} className="animate-spin" />
-                                    ) : (
-                                        <RefreshCw size={17} />
-                                    )}
-                                    {generatingBarcodes
-                                        ? "Generating Barcodes..."
-                                        : "Generate Barcodes"}
-                                </button>
-                            </div>
-
-                            {students.length > 0 ? (
-                                <div className="overflow-x-auto rounded-xl border border-slate-200">
-                                    <table className="min-w-full text-left text-sm">
-                                        <thead className="bg-slate-50 text-slate-700">
-                                            <tr>
-                                                <th className="px-3 py-2 font-semibold">ID</th>
-                                                <th className="px-3 py-2 font-semibold">Student Record</th>
-                                                <th className="px-3 py-2 font-semibold">Barcode</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-100">
-                                            {students.map((student) => (
-                                                <tr key={student.id}>
-                                                    <td className="px-3 py-2 text-slate-600">{student.id}</td>
-                                                    <td className="px-3 py-2 text-slate-700">
-                                                        {student.student_name || student.name || student.student_id || "Imported student"}
-                                                    </td>
-                                                    <td className="px-3 py-2 text-slate-600">
-                                                        {student.barcode || "Not generated"}
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            ) : (
-                                <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">
-                                    No persisted student records are available.
-                                </p>
-                            )}
-
-                            {importResult && (
-                                <div className="mt-4 grid grid-cols-1 gap-2 text-sm text-slate-600 sm:grid-cols-3">
-                                    <p>
-                                        Imported: {importResult.imported_count ?? importResult.imported ?? 0}
-                                    </p>
-                                    <p>
-                                        Updated: {importResult.updated_count ?? importResult.updated ?? 0}
-                                    </p>
-                                    <p>
-                                        Skipped: {importResult.skipped_count ?? importResult.skipped ?? 0}
-                                    </p>
-                                </div>
-                            )}
-                        </section>
-
-                        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
                             <div className="mb-5 flex items-center gap-3">
                                 <div className="rounded-xl bg-[#eaf7fc] p-3 text-[#1688bd]">
                                     <FileText size={22} />
@@ -856,10 +698,6 @@ export default function BulkGenerationPage() {
                             <h2 className="mb-2 text-lg font-bold text-[#07345d]">
                                 3. Confirm and Generate
                             </h2>
-                            <p className="mb-5 text-sm leading-6 text-slate-500">
-                                The complete batch will use the saved template,
-                                imported records, barcodes and matched photos.
-                            </p>
 
                             <label className="flex items-start gap-3 rounded-xl bg-slate-50 p-4 text-sm text-slate-700">
                                 <input
