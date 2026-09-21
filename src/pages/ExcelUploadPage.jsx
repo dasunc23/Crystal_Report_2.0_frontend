@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
     ArrowLeft,
@@ -14,6 +14,7 @@ import {
 import {
     previewStudentExcel,
     importStudentExcel,
+    getProjectStudents,
 } from "../api/studentApi";
 
 import {
@@ -154,6 +155,7 @@ export default function ExcelUploadPage() {
 
     const [successMessage, setSuccessMessage] = useState("");
     const [errorMessage, setErrorMessage] = useState("");
+    const excelFileInputRef = useRef(null);
 
     const selectedTemplate = useMemo(
         () =>
@@ -230,6 +232,18 @@ export default function ExcelUploadPage() {
         return () => {
             cancelled = true;
         };
+    }, [projectId, routeTemplateId]);
+
+    useEffect(() => {
+        setSelectedFile(null);
+        setColumns([]);
+        setPreviewRows([]);
+        setMappings({});
+        setImportResult(null);
+
+        if (excelFileInputRef.current) {
+            excelFileInputRef.current.value = "";
+        }
     }, [projectId, routeTemplateId]);
 
     useEffect(() => {
@@ -363,8 +377,22 @@ export default function ExcelUploadPage() {
             );
 
             const result = unwrapResponse(response);
+            const studentsResponse = await getProjectStudents(projectId);
+            const studentsPayload = unwrapResponse(studentsResponse);
+            let students = [];
+
+            if (Array.isArray(studentsPayload?.students?.data)) {
+                students = studentsPayload.students.data;
+            } else if (Array.isArray(studentsPayload?.data)) {
+                students = studentsPayload.data;
+            }
+
             setImportResult(result);
             setSuccessMessage("Excel file imported successfully.");
+
+            if (excelFileInputRef.current) {
+                excelFileInputRef.current.value = "";
+            }
 
             // Redirect to bulk generation after the import succeeds.
             navigate(`/projects/${projectId}/bulk-generation`, {
@@ -376,6 +404,7 @@ export default function ExcelUploadPage() {
                         selectedTemplate?.template_name ||
                         `Template ${selectedTemplateId}`,
                     importResult: result,
+                    students,
                 },
             });
         } catch (error) {
@@ -531,6 +560,7 @@ export default function ExcelUploadPage() {
                             </label>
 
                             <input
+                                ref={excelFileInputRef}
                                 id="excel-file"
                                 type="file"
                                 accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv"

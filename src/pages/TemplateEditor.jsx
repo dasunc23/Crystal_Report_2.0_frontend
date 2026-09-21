@@ -134,13 +134,19 @@ function hexToRgba(hex, opacity = 1) {
 function normalizeElement(element) {
     const position = element.position || {};
     const size = element.size || {};
+    const type = element.type || element.element_type || "static_text";
+    const mapping =
+        element.mapping ||
+        element.dataMapping ||
+        element.data_mapping ||
+        null;
 
     return {
         ...element,
         side: element.side || "front",
-        type: element.type || "static_text",
+        type,
         name: element.name || "",
-        field_name: element.field_name || null,
+        field_name: element.field_name || (type === "photo" ? "photo" : null),
 
         x_mm: Number(
             element.x_mm ??
@@ -177,7 +183,11 @@ function normalizeElement(element) {
         visible: element.visible !== false,
         z_index: Number(element.z_index ?? 1),
         text: element.text || element.properties?.text || "",
-        mapping: element.mapping || null,
+        mapping:
+            mapping ||
+            (type === "photo"
+                ? { source_field: "photo", is_required: false }
+                : null),
         properties: {
             font_size: 12,
             text_color: "#111827",
@@ -656,6 +666,17 @@ export default function TemplateEditor() {
                                       text: elementForm.text || defaults.text,
                                   }),
                               type: elementForm.type,
+                              field_name:
+                                  elementForm.type === "photo"
+                                      ? "photo"
+                                      : element.field_name || null,
+                              mapping:
+                                  elementForm.type === "photo"
+                                      ? {
+                                            source_field: "photo",
+                                            is_required: false,
+                                        }
+                                      : element.mapping || null,
                               side: elementForm.side || element.side || activeSide,
                               x_mm: Number(elementForm.x_mm) || 0,
                               y_mm: Number(elementForm.y_mm) || 0,
@@ -684,6 +705,12 @@ export default function TemplateEditor() {
                     text: elementForm.text || defaults.text,
                 }),
             type: elementForm.type,
+            field_name:
+                elementForm.type === "photo" ? "photo" : null,
+            mapping:
+                elementForm.type === "photo"
+                    ? { source_field: "photo", is_required: false }
+                    : null,
             side: activeSide,
             x_mm: Number(elementForm.x_mm) || 0,
             y_mm: Number(elementForm.y_mm) || 0,

@@ -14,10 +14,21 @@ import {
     Download,
 } from "lucide-react";
 
-const API_BASE = (import.meta.env.VITE_API_URL || "/api").replace(/\/$/, "");
+import {
+    generateStudentBarcodes,
+    getProjectStudents,
+    uploadStudentPhotos,
+} from "../api/studentApi";
+import { createPrintSheetPreview } from "../api/templateApi";
+import { downloadGenerationJob } from "../api/generationApi";
+
+const API_BASE = (
+    import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api"
+).replace(/\/$/, "");
 
 function apiUrl(path) {
-    return `${API_BASE}${path.startsWith("/") ? path : `/${path}`}`;
+    const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+    return API_BASE + normalizedPath;
 }
 
 function unwrap(payload) {
@@ -36,10 +47,41 @@ function errorMessage(error, fallback) {
     );
 }
 
+async function detailedErrorMessage(error, fallback) {
+    const responseData = error?.response?.data;
+
+    if (responseData instanceof Blob) {
+        try {
+            const text = await responseData.text();
+            const data = JSON.parse(text);
+
+            if (typeof data?.message === "string") {
+                return data.message;
+            }
+
+            if (data?.errors) {
+                return Object.values(data.errors).flat().join(" ");
+            }
+        } catch {
+            // Keep the fallback when the blob is not a JSON error response.
+        }
+    }
+
+    return errorMessage(error, fallback);
+}
+
 async function request(path, options = {}) {
+    const headers = new Headers(options.headers);
+    const token = localStorage.getItem("auth_token");
+
+    if (token) {
+        headers.set("Authorization", `Bearer ${token}`);
+    }
+
     const response = await fetch(apiUrl(path), {
-        credentials: "include",
         ...options,
+        credentials: "omit",
+        headers,
     });
 
     const contentType = response.headers.get("content-type") || "";
@@ -61,6 +103,22 @@ function getCount(value) {
     return Number(value ?? 0);
 }
 
+function getStudentRecords(payload) {
+    if (Array.isArray(payload?.students?.data)) {
+        return payload.students.data;
+    }
+
+    if (Array.isArray(payload?.students)) {
+        return payload.students;
+    }
+
+    if (Array.isArray(payload?.data)) {
+        return payload.data;
+    }
+
+    return Array.isArray(payload) ? payload : [];
+}
+
 export default function BulkGenerationPage() {
     const { projectId } = useParams();
     const location = useLocation();
@@ -68,13 +126,23 @@ export default function BulkGenerationPage() {
 
     const templateId = location.state?.templateId || "";
     const templateName = location.state?.templateName || "";
+    const importResult = location.state?.importResult || null;
 
     const [photoFiles, setPhotoFiles] = useState([]);
     const [photoSummary, setPhotoSummary] = useState(null);
-    const [preview, setPreview] = useState(null);
+    const [students, setStudents] = useState(
+        Array.isArray(location.state?.students) ? location.state.students : []
+    );
+    const [loadingStudents, setLoadingStudents] = useState(false);
+    const [summary, setSummary] = useState(importResult);
     const [generationJob, setGenerationJob] = useState(null);
+    const [pdfPreviewUrl, setPdfPreviewUrl] = useState("");
+    const [pdfPreviewError, setPdfPreviewError] = useState("");
+    const pdfPreviewUrlRef = useRef("");
+    const pdfPreviewFrameRef = useRef(null);
 
     const [loadingPhotos, setLoadingPhotos] = useState(false);
+    const [generatingBarcodes, setGeneratingBarcodes] = useState(false);
     const [loadingPreview, setLoadingPreview] = useState(false);
     const [startingGeneration, setStartingGeneration] = useState(false);
     const [loadingStatus, setLoadingStatus] = useState(false);
@@ -120,11 +188,11 @@ export default function BulkGenerationPage() {
             return false;
         }
 
-        if (!preview) {
+        if (!summary || !pdfPreviewUrl) {
             return false;
         }
 
-        if (preview.invalid_count > 0) {
+        if (summary.invalid_count > 0) {
             return false;
         }
 
@@ -134,7 +202,8 @@ export default function BulkGenerationPage() {
         templateId,
         loadingPhotos,
         loadingPreview,
-        preview,
+        summary,
+        pdfPreviewUrl,
         confirmed,
         isRunning,
         startingGeneration,
@@ -145,13 +214,78 @@ export default function BulkGenerationPage() {
         setSuccess("");
     }
 
+    function clearPdfPreview() {
+        if (pdfPreviewUrlRef.current) {
+            URL.revokeObjectURL(pdfPreviewUrlRef.current);
+            pdfPreviewUrlRef.current = "";
+        }
+
+        setPdfPreviewUrl("");
+        setPdfPreviewError("");
+    }
+
+    async function refreshStudents() {
+        const response = await getProjectStudents(projectId);
+        const records = getStudentRecords(unwrap(response));
+        setStudents(records);
+        return records;
+    }
+
+    useEffect(() => {
+        let cancelled = false;
+
+        async function loadStudents() {
+            if (!projectId || students.length > 0) {
+                return;
+            }
+
+            try {
+                setLoadingStudents(true);
+                const response = await getProjectStudents(projectId);
+                const payload = unwrap(response);
+                const records = getStudentRecords(payload);
+
+                if (!cancelled) {
+                    setStudents(records);
+                }
+            } catch (requestError) {
+                if (!cancelled) {
+                    setError(
+                        errorMessage(
+                            requestError,
+                            "Unable to load the imported students."
+                        )
+                    );
+                }
+            } finally {
+                if (!cancelled) {
+                    setLoadingStudents(false);
+                }
+            }
+        }
+
+        loadStudents();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [projectId, students.length]);
+
+    useEffect(() => {
+        return () => {
+            if (pdfPreviewUrlRef.current) {
+                URL.revokeObjectURL(pdfPreviewUrlRef.current);
+            }
+        };
+    }, []);
+
     function handlePhotoSelection(event) {
         const files = Array.from(event.target.files || []);
 
         clearMessages();
         setPhotoFiles(files);
         setPhotoSummary(null);
-        setPreview(null);
+        clearPdfPreview();
         setGenerationJob(null);
         setConfirmed(false);
     }
@@ -172,24 +306,15 @@ export default function BulkGenerationPage() {
             return;
         }
 
-        const formData = new FormData();
-        formData.append("template_id", templateId);
-
-        photoFiles.forEach((file) => {
-            formData.append("photos[]", file);
-        });
-
         try {
             setLoadingPhotos(true);
             clearMessages();
 
             const result = unwrap(
-                await request(`/projects/${projectId}/photos`, {
-                    method: "POST",
-                    body: formData,
-                })
+                await uploadStudentPhotos(projectId, photoFiles)
             );
 
+            await refreshStudents();
             setPhotoSummary(result || {});
             setSuccess("Student photos uploaded and matched successfully.");
         } catch (requestError) {
@@ -204,6 +329,37 @@ export default function BulkGenerationPage() {
         }
     }
 
+    async function generateBarcodes() {
+        if (!projectId) {
+            setError("Project ID is missing.");
+            return;
+        }
+
+        try {
+            setGeneratingBarcodes(true);
+            clearMessages();
+
+            const result = await generateStudentBarcodes(projectId);
+            const response = unwrap(result) || {};
+
+            setSuccess(
+                response.message ||
+                    "Student barcodes generated successfully."
+            );
+
+            await refreshStudents();
+        } catch (requestError) {
+            setError(
+                errorMessage(
+                    requestError,
+                    "Unable to generate student barcodes."
+                )
+            );
+        } finally {
+            setGeneratingBarcodes(false);
+        }
+    }
+
     async function loadPreview() {
         if (!projectId || !templateId) {
             setError("Project or template information is missing.");
@@ -214,22 +370,45 @@ export default function BulkGenerationPage() {
             setLoadingPreview(true);
             clearMessages();
 
-            const result = unwrap(
-                await request(
-                    `/projects/${projectId}/templates/${templateId}/generation-preview?limit=6`
-                )
+            const currentStudents = await refreshStudents();
+            const studentIds = currentStudents
+                .map((student) => student?.id)
+                .filter((id) => id !== null && id !== undefined);
+
+            if (studentIds.length === 0) {
+                throw new Error(
+                    "No persisted students are available for PDF preview."
+                );
+            }
+
+            const response = await createPrintSheetPreview(
+                projectId,
+                templateId,
+                studentIds
             );
 
-            setPreview(result || {});
+            if (!(response.data instanceof Blob) || response.data.size === 0) {
+                throw new Error("The preview response did not contain a PDF.");
+            }
+
+            clearPdfPreview();
+            const nextUrl = URL.createObjectURL(response.data);
+            pdfPreviewUrlRef.current = nextUrl;
+            setPdfPreviewUrl(nextUrl);
+            setPdfPreviewError("");
+            setSummary(importResult || {});
             setConfirmed(false);
-            setSuccess("Sample cards are ready for review.");
+            setSuccess("A4 PDF preview is ready for review.");
         } catch (requestError) {
-            setError(
-                errorMessage(
-                    requestError,
-                    "Unable to generate the sample card preview."
-                )
+            const message = await detailedErrorMessage(
+                requestError,
+                "Unable to create the PDF preview."
             );
+
+            setPdfPreviewError(
+                message
+            );
+            setError(message);
         } finally {
             setLoadingPreview(false);
         }
@@ -277,6 +456,45 @@ export default function BulkGenerationPage() {
             );
         } finally {
             setStartingGeneration(false);
+        }
+    }
+
+    async function openPreviewFullscreen() {
+        if (!pdfPreviewFrameRef.current) {
+            return;
+        }
+
+        if (document.fullscreenElement) {
+            await document.exitFullscreen();
+            return;
+        }
+
+        await pdfPreviewFrameRef.current.requestFullscreen();
+    }
+
+    async function downloadFinalPdf() {
+        const jobId = generationJob?.id || generationJob?.job_id;
+
+        if (!jobId) {
+            setError("The completed generation job ID is missing.");
+            return;
+        }
+
+        try {
+            clearMessages();
+            const response = await downloadGenerationJob(projectId, jobId);
+            const url = URL.createObjectURL(response.data);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = `student-id-cards-${projectId}.pdf`;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(url);
+        } catch (requestError) {
+            setError(
+                errorMessage(requestError, "Unable to download the final PDF.")
+            );
         }
     }
 
@@ -394,10 +612,16 @@ export default function BulkGenerationPage() {
                                 ref={fileInputRef}
                                 type="file"
                                 multiple
+                                webkitdirectory="true"
+                                directory="true"
                                 accept=".jpg,.jpeg,.png,image/jpeg,image/png"
                                 onChange={handlePhotoSelection}
                                 className="block w-full cursor-pointer rounded-xl border border-slate-300 bg-slate-50 text-sm text-slate-600 file:mr-4 file:cursor-pointer file:border-0 file:bg-[#1688bd] file:px-4 file:py-3 file:font-semibold file:text-white hover:file:bg-[#11739f]"
                             />
+
+                            <p className="mt-2 text-xs text-slate-500">
+                                Select the folder containing barcode-named student photos, such as 00000001.jpg.
+                            </p>
 
                             {photoFiles.length > 0 && (
                                 <p className="mt-3 text-sm text-slate-600">
@@ -454,6 +678,100 @@ export default function BulkGenerationPage() {
                                     />
                                 </div>
                             )}
+
+                            {photoSummary && (
+                                <div className="mt-4 grid grid-cols-1 gap-2 text-sm text-slate-600 sm:grid-cols-3">
+                                    <p>
+                                        Unmatched files: {photoSummary.unmatched_files?.length ?? photoSummary.unmatched_count ?? photoSummary.unmatched ?? 0}
+                                    </p>
+                                    <p>
+                                        Duplicate files: {photoSummary.duplicate_files?.length ?? photoSummary.duplicate_count ?? photoSummary.duplicates ?? 0}
+                                    </p>
+                                    <p>
+                                        Missing photos: {photoSummary.missing_photos?.length ?? photoSummary.missing_count ?? photoSummary.missing ?? 0}
+                                    </p>
+                                </div>
+                            )}
+                        </section>
+
+                        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+                            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                                <div>
+                                    <h2 className="text-lg font-bold text-[#07345d]">
+                                        Imported Students
+                                    </h2>
+                                    <p className="text-sm text-slate-500">
+                                        {loadingStudents
+                                            ? "Loading persisted student records..."
+                                            : `${students.length} student record(s) available for generation.`}
+                                    </p>
+                                </div>
+
+                                <button
+                                    type="button"
+                                    onClick={generateBarcodes}
+                                    disabled={
+                                        loadingStudents ||
+                                        generatingBarcodes ||
+                                        students.length === 0
+                                    }
+                                    className="inline-flex items-center gap-2 rounded-xl border border-[#1688bd] bg-white px-4 py-2 text-sm font-semibold text-[#1688bd] transition hover:bg-[#eaf7fc] disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    {generatingBarcodes ? (
+                                        <Loader2 size={17} className="animate-spin" />
+                                    ) : (
+                                        <RefreshCw size={17} />
+                                    )}
+                                    {generatingBarcodes
+                                        ? "Generating Barcodes..."
+                                        : "Generate Barcodes"}
+                                </button>
+                            </div>
+
+                            {students.length > 0 ? (
+                                <div className="overflow-x-auto rounded-xl border border-slate-200">
+                                    <table className="min-w-full text-left text-sm">
+                                        <thead className="bg-slate-50 text-slate-700">
+                                            <tr>
+                                                <th className="px-3 py-2 font-semibold">ID</th>
+                                                <th className="px-3 py-2 font-semibold">Student Record</th>
+                                                <th className="px-3 py-2 font-semibold">Barcode</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                            {students.map((student) => (
+                                                <tr key={student.id}>
+                                                    <td className="px-3 py-2 text-slate-600">{student.id}</td>
+                                                    <td className="px-3 py-2 text-slate-700">
+                                                        {student.student_name || student.name || student.student_id || "Imported student"}
+                                                    </td>
+                                                    <td className="px-3 py-2 text-slate-600">
+                                                        {student.barcode || "Not generated"}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            ) : (
+                                <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">
+                                    No persisted student records are available.
+                                </p>
+                            )}
+
+                            {importResult && (
+                                <div className="mt-4 grid grid-cols-1 gap-2 text-sm text-slate-600 sm:grid-cols-3">
+                                    <p>
+                                        Imported: {importResult.imported_count ?? importResult.imported ?? 0}
+                                    </p>
+                                    <p>
+                                        Updated: {importResult.updated_count ?? importResult.updated ?? 0}
+                                    </p>
+                                    <p>
+                                        Skipped: {importResult.skipped_count ?? importResult.skipped ?? 0}
+                                    </p>
+                                </div>
+                            )}
                         </section>
 
                         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
@@ -484,73 +802,50 @@ export default function BulkGenerationPage() {
                                     <RefreshCw size={18} />
                                 )}
                                 {loadingPreview
-                                    ? "Creating Preview..."
-                                    : "Generate Sample Preview"}
+                                    ? "Generating PDF preview..."
+                                    : "Generate PDF Preview"}
                             </button>
 
-                            {preview && (
+                            {(summary || pdfPreviewUrl || pdfPreviewError) && (
                                 <div className="mt-5 space-y-4">
-                                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                                        <SummaryCard
-                                            label="Valid"
-                                            value={getCount(preview.valid_count)}
-                                            color="green"
-                                        />
-                                        <SummaryCard
-                                            label="Invalid"
-                                            value={getCount(preview.invalid_count)}
-                                            color="red"
-                                        />
-                                        <SummaryCard
-                                            label="With Photos"
-                                            value={getCount(
-                                                preview.photo_matched_count
-                                            )}
-                                            color="blue"
-                                        />
-                                        <SummaryCard
-                                            label="Missing Photos"
-                                            value={getCount(
-                                                preview.photo_missing_count
-                                            )}
-                                            color="amber"
-                                        />
-                                    </div>
+                                    {pdfPreviewError && (
+                                        <p className="rounded-xl bg-red-50 p-4 text-sm text-red-700">
+                                            {pdfPreviewError}
+                                        </p>
+                                    )}
 
-                                    {Array.isArray(preview.cards) &&
-                                        preview.cards.length > 0 && (
-                                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                                                {preview.cards.map((card, index) => (
-                                                    <div
-                                                        key={card.id || index}
-                                                        className="rounded-xl border border-slate-200 bg-slate-50 p-3"
-                                                    >
-                                                        <p className="mb-2 text-sm font-semibold text-[#07345d]">
-                                                            {card.student_name ||
-                                                                card.name ||
-                                                                `Student ${index + 1}`}
-                                                        </p>
-
-                                                        <div className="grid grid-cols-2 gap-2">
-                                                            <PreviewImage
-                                                                src={
-                                                                    card.front_url ||
-                                                                    card.front
-                                                                }
-                                                                label="Front"
-                                                            />
-                                                            <PreviewImage
-                                                                src={
-                                                                    card.back_url ||
-                                                                    card.back
-                                                                }
-                                                                label="Back"
-                                                            />
-                                                        </div>
-                                                    </div>
-                                                ))}
+                                    {pdfPreviewUrl && (
+                                        <div className="space-y-3">
+                                            <div
+                                                ref={pdfPreviewFrameRef}
+                                                className="h-[75vh] min-h-[520px] overflow-hidden rounded-xl border border-slate-200 bg-slate-100"
+                                            >
+                                                <iframe
+                                                    src={pdfPreviewUrl}
+                                                    title="Student ID card PDF preview"
+                                                    className="h-full w-full"
+                                                />
                                             </div>
-                                        )}
+
+                                            <div className="flex flex-wrap gap-3">
+                                                <button
+                                                    type="button"
+                                                    onClick={openPreviewFullscreen}
+                                                    className="inline-flex items-center gap-2 rounded-xl bg-[#1688bd] px-4 py-2 text-sm font-semibold text-white hover:bg-[#11739f]"
+                                                >
+                                                    <Images size={17} />
+                                                    Full Screen Preview
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={clearPdfPreview}
+                                                    className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                                                >
+                                                    Clear Preview
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </section>
@@ -573,7 +868,7 @@ export default function BulkGenerationPage() {
                                     onChange={(event) =>
                                         setConfirmed(event.target.checked)
                                     }
-                                    disabled={!preview || isRunning}
+                                    disabled={!pdfPreviewUrl || isRunning}
                                     className="mt-1 h-4 w-4 accent-[#1688bd]"
                                 />
                                 <span>
@@ -583,7 +878,7 @@ export default function BulkGenerationPage() {
                                 </span>
                             </label>
 
-                            {preview?.invalid_count > 0 && (
+                            {summary?.invalid_count > 0 && (
                                 <p className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">
                                     Resolve invalid records before starting the
                                     complete generation.
@@ -651,18 +946,14 @@ export default function BulkGenerationPage() {
                                 </p>
 
                                 {isCompleted && (
-                                    <a
-                                        href={
-                                            generationJob.download_url ||
-                                            generationJob.output_url ||
-                                            generationJob.file_url ||
-                                            "#"
-                                        }
+                                    <button
+                                        type="button"
+                                        onClick={downloadFinalPdf}
                                         className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-green-600 px-4 py-3 text-sm font-semibold text-white hover:bg-green-700"
                                     >
                                         <Download size={18} />
                                         Download Final PDF
-                                    </a>
+                                    </button>
                                 )}
 
                                 {isFailed && (
@@ -696,23 +987,3 @@ function SummaryCard({ label, value, color }) {
     );
 }
 
-function PreviewImage({ src, label }) {
-    return (
-        <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
-            {src ? (
-                <img
-                    src={src}
-                    alt={`${label} card preview`}
-                    className="aspect-[3/2] w-full object-contain"
-                />
-            ) : (
-                <div className="flex aspect-[3/2] items-center justify-center text-xs text-slate-400">
-                    No {label.toLowerCase()} preview
-                </div>
-            )}
-            <p className="border-t border-slate-100 px-2 py-1 text-center text-xs font-semibold text-slate-500">
-                {label}
-            </p>
-        </div>
-    );
-}

@@ -1,6 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
-    Edit,
     FolderOpen,
     Plus,
     RefreshCw,
@@ -11,7 +10,6 @@ import {
 import {
     getProjects,
     createProject,
-    updateProject,
     deleteProject,
 } from "../api/projectApi";
 
@@ -25,12 +23,8 @@ export default function Projects({ onOpenProject }) {
     const [success, setSuccess] = useState("");
 
     const [showCreateModal, setShowCreateModal] = useState(false);
-    const [editingProject, setEditingProject] = useState(null);
-
     const [formData, setFormData] = useState({
         name: "",
-        description: "",
-        status: "draft",
     });
 
     const normalizeList = (response) => {
@@ -89,38 +83,9 @@ export default function Projects({ onOpenProject }) {
 
     const totalProjects = projects.length;
 
-    const draftProjects = useMemo(() => {
-        return projects.filter(
-            (project) =>
-                String(project.status || "draft").toLowerCase() === "draft"
-        ).length;
-    }, [projects]);
-
-    const activeProjects = useMemo(() => {
-        return projects.filter(
-            (project) =>
-                String(project.status || "").toLowerCase() === "active"
-        ).length;
-    }, [projects]);
-
     const openCreateModal = () => {
-        setEditingProject(null);
         setFormData({
             name: "",
-            description: "",
-            status: "draft",
-        });
-        setError("");
-        setSuccess("");
-        setShowCreateModal(true);
-    };
-
-    const openEditModal = (project) => {
-        setEditingProject(project);
-        setFormData({
-            name: project.name || "",
-            description: project.description || "",
-            status: project.status || "draft",
         });
         setError("");
         setSuccess("");
@@ -133,11 +98,8 @@ export default function Projects({ onOpenProject }) {
         }
 
         setShowCreateModal(false);
-        setEditingProject(null);
         setFormData({
             name: "",
-            description: "",
-            status: "draft",
         });
     };
 
@@ -164,49 +126,18 @@ export default function Projects({ onOpenProject }) {
 
         const payload = {
             name: formData.name.trim(),
-            description: formData.description.trim(),
-            status: formData.status,
         };
 
         try {
-            if (editingProject) {
-                const response = await updateProject(
-                    editingProject.id,
-                    payload
-                );
+            const response = await createProject(payload);
+            const newProject = normalizeObject(response);
 
-                const updatedProject = normalizeObject(response);
-
-                setProjects((previous) =>
-                    previous.map((project) =>
-                        project.id === editingProject.id
-                            ? {
-                                  ...project,
-                                  ...updatedProject,
-                              }
-                            : project
-                    )
-                );
-
-                setSuccess("Project updated successfully.");
-            } else {
-                const response = await createProject(payload);
-                const newProject = normalizeObject(response);
-
-                setProjects((previous) => [
-                    newProject,
-                    ...previous,
-                ]);
-
-                setSuccess("Project created successfully.");
-            }
+            setProjects((previous) => [newProject, ...previous]);
+            setSuccess("Project created successfully.");
 
             setShowCreateModal(false);
-            setEditingProject(null);
             setFormData({
                 name: "",
-                description: "",
-                status: "draft",
             });
         } catch (err) {
             console.error("Unable to save project:", err);
@@ -253,26 +184,6 @@ export default function Projects({ onOpenProject }) {
         } finally {
             setDeletingId(null);
         }
-    };
-
-    const getStatusClasses = (status) => {
-        const normalizedStatus = String(
-            status || "draft"
-        ).toLowerCase();
-
-        if (normalizedStatus === "active") {
-            return "bg-green-100 text-green-700";
-        }
-
-        if (normalizedStatus === "completed") {
-            return "bg-purple-100 text-purple-700";
-        }
-
-        if (normalizedStatus === "archived") {
-            return "bg-slate-200 text-slate-600";
-        }
-
-        return "bg-[#eaf7fc] text-[#1688bd]";
     };
 
     return (
@@ -322,69 +233,6 @@ export default function Projects({ onOpenProject }) {
 
                         New Project
                     </button>
-                </div>
-            </div>
-
-            {/* Summary cards */}
-            <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
-                <div className="rounded-2xl border border-[#d8e8f0] bg-white p-5 shadow-sm">
-                    <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium text-[#6b7d8c]">
-                            Total Projects
-                        </p>
-
-                        <div className="rounded-lg bg-[#eaf7fc] p-2 text-[#1688bd]">
-                            <FolderOpen size={18} />
-                        </div>
-                    </div>
-
-                    <p className="mt-4 text-3xl font-bold text-[#07345d]">
-                        {totalProjects}
-                    </p>
-
-                    <p className="mt-1 text-xs text-[#6b7d8c]">
-                        All created projects
-                    </p>
-                </div>
-
-                <div className="rounded-2xl border border-[#d8e8f0] bg-white p-5 shadow-sm">
-                    <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium text-[#6b7d8c]">
-                            Draft Projects
-                        </p>
-
-                        <div className="rounded-lg bg-[#eaf7fc] p-2 text-[#1688bd]">
-                            <Edit size={18} />
-                        </div>
-                    </div>
-
-                    <p className="mt-4 text-3xl font-bold text-[#1688bd]">
-                        {draftProjects}
-                    </p>
-
-                    <p className="mt-1 text-xs text-[#6b7d8c]">
-                        Projects still being prepared
-                    </p>
-                </div>
-
-                <div className="rounded-2xl border border-[#d8e8f0] bg-white p-5 shadow-sm">
-                    <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium text-[#6b7d8c]">
-                            Active Projects
-                        </p>
-
-                        <div className="rounded-lg bg-green-100 p-2 text-green-700">
-                            <FolderOpen size={18} />
-                        </div>
-                    </div>
-
-                    <p className="mt-4 text-3xl font-bold text-green-600">
-                        {activeProjects}
-                    </p>
-
-                    <p className="mt-1 text-xs text-[#6b7d8c]">
-                        Projects currently in progress
-                    </p>
                 </div>
             </div>
 
@@ -464,9 +312,6 @@ export default function Projects({ onOpenProject }) {
             ) : (
                 <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
                     {projects.map((project) => {
-                        const projectStatus =
-                            project.status || "draft";
-
                         return (
                             <article
                                 key={project.id}
@@ -482,25 +327,9 @@ export default function Projects({ onOpenProject }) {
                                             {project.name}
                                         </h4>
 
-                                        <p className="mt-2 line-clamp-3 text-sm leading-6 text-[#6b7d8c]">
-                                            {project.description ||
-                                                "Manage templates, student data, photos, and ID card printing for this project."}
-                                        </p>
                                     </div>
 
                                     <div className="flex shrink-0 items-center gap-1">
-                                        <button
-                                            type="button"
-                                            onClick={() =>
-                                                openEditModal(project)
-                                            }
-                                            className="rounded-lg p-2 text-[#1688bd] transition hover:bg-[#eaf7fc]"
-                                            title="Edit project"
-                                            aria-label="Edit project"
-                                        >
-                                            <Edit size={17} />
-                                        </button>
-
                                         <button
                                             type="button"
                                             onClick={() =>
@@ -519,15 +348,7 @@ export default function Projects({ onOpenProject }) {
                                 </div>
 
                                 <div className="mt-auto pt-6">
-                                    <div className="mb-5 flex items-center justify-between gap-3">
-                                        <span
-                                            className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${getStatusClasses(
-                                                projectStatus
-                                            )}`}
-                                        >
-                                            {projectStatus}
-                                        </span>
-
+                                    <div className="mb-5 flex items-center justify-end gap-3">
                                         <span className="text-xs text-[#6b7d8c]">
                                             ID #{project.id}
                                         </span>
@@ -558,15 +379,11 @@ export default function Projects({ onOpenProject }) {
                         <div className="flex items-center justify-between border-b border-[#d8e8f0] px-6 py-5">
                             <div>
                                 <h3 className="text-xl font-bold text-[#07345d]">
-                                    {editingProject
-                                        ? "Edit Project"
-                                        : "Create New Project"}
+                                    Create New Project
                                 </h3>
 
                                 <p className="mt-1 text-sm text-[#6b7d8c]">
-                                    {editingProject
-                                        ? "Update your project information."
-                                        : "Add a new Crystal ID card project."}
+                                    Add a new Crystal ID card project.
                                 </p>
                             </div>
 
@@ -605,58 +422,6 @@ export default function Projects({ onOpenProject }) {
                                 />
                             </div>
 
-                            <div>
-                                <label
-                                    htmlFor="project-description"
-                                    className="mb-2 block text-sm font-semibold text-[#07345d]"
-                                >
-                                    Description
-                                </label>
-
-                                <textarea
-                                    id="project-description"
-                                    name="description"
-                                    value={formData.description}
-                                    onChange={handleChange}
-                                    placeholder="Describe this project..."
-                                    rows={4}
-                                    className="w-full resize-none rounded-lg border border-[#cbdde6] px-4 py-3 text-sm text-[#07345d] outline-none transition placeholder:text-slate-400 focus:border-[#1688bd] focus:ring-2 focus:ring-[#1688bd]/20"
-                                />
-                            </div>
-
-                            <div>
-                                <label
-                                    htmlFor="project-status"
-                                    className="mb-2 block text-sm font-semibold text-[#07345d]"
-                                >
-                                    Status
-                                </label>
-
-                                <select
-                                    id="project-status"
-                                    name="status"
-                                    value={formData.status}
-                                    onChange={handleChange}
-                                    className="w-full rounded-lg border border-[#cbdde6] bg-white px-4 py-3 text-sm text-[#07345d] outline-none transition focus:border-[#1688bd] focus:ring-2 focus:ring-[#1688bd]/20"
-                                >
-                                    <option value="draft">
-                                        Draft
-                                    </option>
-
-                                    <option value="active">
-                                        Active
-                                    </option>
-
-                                    <option value="completed">
-                                        Completed
-                                    </option>
-
-                                    <option value="archived">
-                                        Archived
-                                    </option>
-                                </select>
-                            </div>
-
                             {error && (
                                 <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
                                     {error}
@@ -678,11 +443,7 @@ export default function Projects({ onOpenProject }) {
                                     disabled={saving}
                                     className="rounded-lg bg-[#1688bd] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#07345d] disabled:cursor-not-allowed disabled:opacity-60"
                                 >
-                                    {saving
-                                        ? "Saving..."
-                                        : editingProject
-                                        ? "Update Project"
-                                        : "Create Project"}
+                                    {saving ? "Saving..." : "Create Project"}
                                 </button>
                             </div>
                         </form>

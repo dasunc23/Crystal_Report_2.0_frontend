@@ -570,16 +570,6 @@ export default function ProjectDetails() {
 
                     <div className="rounded-xl border border-[#d8e8f0] bg-white p-5 shadow-sm">
                         <p className="text-sm text-[#6b7d8c]">
-                            Status
-                        </p>
-
-                        <p className="mt-2 font-semibold capitalize text-[#17324d]">
-                            {project.status || "draft"}
-                        </p>
-                    </div>
-
-                    <div className="rounded-xl border border-[#d8e8f0] bg-white p-5 shadow-sm">
-                        <p className="text-sm text-[#6b7d8c]">
                             Templates
                         </p>
 

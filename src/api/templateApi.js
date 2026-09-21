@@ -210,6 +210,31 @@ export const getTemplateDesignPreview = async (
     return response;
 };
 
+export const createPrintSheetPreview = async (
+    projectId,
+    templateId,
+    studentIds
+) => {
+    if (!projectId || !templateId) {
+        throw new Error("Project ID and template ID are required.");
+    }
+
+    if (!Array.isArray(studentIds) || studentIds.length === 0) {
+        throw new Error("At least one student is required for preview.");
+    }
+
+    return axiosClient.post(
+        `/projects/${projectId}/templates/${templateId}/print-sheet`,
+        {
+            student_ids: studentIds,
+            preview: true,
+        },
+        {
+            responseType: "blob",
+        }
+    );
+};
+
 /*
 |--------------------------------------------------------------------------
 | Template Dimensions
