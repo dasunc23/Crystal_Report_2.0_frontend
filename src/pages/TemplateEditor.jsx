@@ -71,7 +71,7 @@ const ELEMENT_DEFAULTS = {
     manufacture_date: {
         width_mm: 45,
         height_mm: 8,
-        text: "Manufacture Date: {{manufacture_date}}",
+        text: "Manufacture Date: DD/MM/YYYY",
         font_size: 10,
         text_color: "#111827",
         background_color: "#ffffff",
