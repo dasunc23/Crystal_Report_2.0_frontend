@@ -568,52 +568,6 @@ export default function BulkGenerationPage() {
                                     ? "Matching Photos..."
                                     : "Upload and Match Photos"}
                             </button>
-
-                            {photoSummary && (
-                                <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
-                                    <SummaryCard
-                                        label="Matched"
-                                        value={
-                                            photoSummary.matched_count ??
-                                            photoSummary.matched ??
-                                            0
-                                        }
-                                        color="green"
-                                    />
-                                    <SummaryCard
-                                        label="Missing"
-                                        value={
-                                            photoSummary.missing_count ??
-                                            photoSummary.missing ??
-                                            0
-                                        }
-                                        color="amber"
-                                    />
-                                    <SummaryCard
-                                        label="Invalid"
-                                        value={
-                                            photoSummary.invalid_count ??
-                                            photoSummary.invalid ??
-                                            0
-                                        }
-                                        color="red"
-                                    />
-                                </div>
-                            )}
-
-                            {photoSummary && (
-                                <div className="mt-4 grid grid-cols-1 gap-2 text-sm text-slate-600 sm:grid-cols-3">
-                                    <p>
-                                        Unmatched files: {photoSummary.unmatched_files?.length ?? photoSummary.unmatched_count ?? photoSummary.unmatched ?? 0}
-                                    </p>
-                                    <p>
-                                        Duplicate files: {photoSummary.duplicate_files?.length ?? photoSummary.duplicate_count ?? photoSummary.duplicates ?? 0}
-                                    </p>
-                                    <p>
-                                        Missing photos: {photoSummary.missing_photos?.length ?? photoSummary.missing_count ?? photoSummary.missing ?? 0}
-                                    </p>
-                                </div>
-                            )}
                         </section>
 
                         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
