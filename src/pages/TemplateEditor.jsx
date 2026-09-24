@@ -58,8 +58,8 @@ const ELEMENT_DEFAULTS = {
         show_background: false,
     },
     student_id: {
-        width_mm: 45,
-        height_mm: 8,
+        width_mm: 39,
+        height_mm: 4,
         text: "Student ID",
         font_size: 12,
         text_color: "#111827",
@@ -1326,8 +1326,8 @@ export default function TemplateEditor() {
                                             ||| || |||| |||
                                         </div>
                                     ) : element.type === "student_id" ? (
-                                        <div className="grid h-full w-full grid-cols-8 gap-px">
-                                            {Array.from({ length: 8 }).map((_, index) => (
+                                        <div className="grid h-full w-full grid-cols-9 gap-px">
+                                            {Array.from({ length: 9 }).map((_, index) => (
                                                 <div
                                                     key={index}
                                                     className="flex items-center justify-center border border-slate-400 text-[0.65em]"
