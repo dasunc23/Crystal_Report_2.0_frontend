@@ -53,7 +53,7 @@ const ELEMENT_DEFAULTS = {
         show_background: true,
     },
     barcode: {
-        width_mm: 55,
+        width_mm: 43,
         height_mm: 12,
         text: "",
         show_background: true,
@@ -65,7 +65,7 @@ const ELEMENT_DEFAULTS = {
         // student record and is never stored as literal template text.
         text: "First Name Last Name",
         font_size: 12,
-        text_color: "#111827",
+        text_color: "#ffffff",
         background_color: "#ffffff",
         opacity: 1,
         show_background: false,
@@ -86,7 +86,7 @@ const ELEMENT_DEFAULTS = {
     // The editor uses the normalized Excel heading `nic` as its source.
     nic: {
         width_mm: 35,
-        height_mm: 5,
+        height_mm: 3,
         text: "NIC",
         font_size: 9,
         text_color: "#111827",
