@@ -37,6 +37,8 @@ const DEFAULT_FORM = {
     background_color: "#ffffff",
     opacity: 1,
     show_background: true,
+    text_alignment: "left",
+    font_weight: "normal",
 
     // Student Name mapping controls how the dynamic name is built.
     // "first_last" combines Excel First Name + Last Name with one space.
@@ -79,6 +81,18 @@ const ELEMENT_DEFAULTS = {
         background_color: "#ffffff",
         opacity: 1,
         show_background: true,
+    },
+    // NIC is stored in the student record JSON `data` field.
+    // The editor uses the normalized Excel heading `nic` as its source.
+    nic: {
+        width_mm: 35,
+        height_mm: 5,
+        text: "NIC",
+        font_size: 9,
+        text_color: "#111827",
+        background_color: "#ffffff",
+        opacity: 1,
+        show_background: false,
     },
     // Dynamic field: the backend supplies the current date when rendering.
     // The editor stores the placeholder only; it never takes the date from Excel.
@@ -178,7 +192,7 @@ function normalizeElement(element) {
         name: element.name || "",
         field_name:
             element.field_name ||
-            (type === "photo" || type === "manufacture_date"
+            (type === "photo" || type === "manufacture_date" || type === "nic"
                 ? type
                 : null),
 
@@ -231,6 +245,8 @@ function normalizeElement(element) {
                 ? { source_field: "photo", is_required: false }
                 : type === "manufacture_date"
                 ? { source_field: "manufacture_date", is_required: false }
+                : type === "nic"
+                ? { source_field: "nic", is_required: false }
                 : null),
         properties: {
             font_size: 12,
@@ -240,6 +256,8 @@ function normalizeElement(element) {
             // Use the normalized type here because API responses may use
             // element_type instead of type.
             show_background: type === "manufacture_date" ? false : true,
+            text_alignment: "left",
+            font_weight: "normal",
 
             // Student Name defaults to First Name + Last Name. This is stored
             // in properties so the backend knows how the dynamic value should
@@ -277,6 +295,10 @@ function getElementLabel(element) {
 
     if (element.type === "manufacture_date") {
         return "Manufacture Date";
+    }
+
+    if (element.type === "nic") {
+        return "NIC";
     }
 
     return element.text || element.name || "Element";
@@ -412,6 +434,8 @@ export default function TemplateEditor() {
             text:
                 selectedElement.type === "manufacture_date"
                     ? getManufactureDatePreviewText()
+                    : selectedElement.type === "nic"
+                    ? "NIC"
                     : selectedElement.text ||
                       selectedElement.properties?.text ||
                       "",
@@ -429,6 +453,8 @@ export default function TemplateEditor() {
                 selectedElement.type === "manufacture_date"
                     ? false
                     : selectedElement.properties?.show_background !== false,
+            text_alignment: selectedElement.properties?.text_alignment || "left",
+            font_weight: selectedElement.properties?.font_weight || "normal",
 
             // Only Student Name uses this mapping. Existing elements simply
             // keep the default value so the form remains controlled.
@@ -661,6 +687,8 @@ export default function TemplateEditor() {
                         "opacity",
                         "show_background",
                         "name_mapping",
+                        "text_alignment",
+                        "font_weight",
                     ].includes(field)
                 ) {
                     return {
@@ -737,6 +765,8 @@ export default function TemplateEditor() {
             text:
                 type === "manufacture_date"
                     ? getManufactureDatePreviewText()
+                    : type === "nic"
+                    ? "NIC"
                     : defaults.text,
             font_size: defaults.font_size ?? elementForm.font_size ?? 12,
             text_color: defaults.text_color ?? elementForm.text_color ?? "#111827",
@@ -771,6 +801,8 @@ export default function TemplateEditor() {
                         "opacity",
                         "show_background",
                         "name_mapping",
+                        "text_alignment",
+                        "font_weight",
                     ].includes(field)) {
                     updateSelectedElement(field, value);
                 }
@@ -790,6 +822,8 @@ export default function TemplateEditor() {
             text:
                 elementForm.type === "manufacture_date"
                     ? "{{manufacture_date}}"
+                    : elementForm.type === "nic"
+                    ? "NIC"
                     : elementForm.text || defaults.text,
             text_color: elementForm.text_color || "#111827",
             background_color: elementForm.background_color || "#ffffff",
@@ -801,6 +835,8 @@ export default function TemplateEditor() {
                 elementForm.type === "manufacture_date"
                     ? false
                     : elementForm.show_background !== false,
+            text_alignment: elementForm.text_alignment || "left",
+            font_weight: elementForm.font_weight || "normal",
 
             // Store the Student Name mapping with the element so the backend
             // can combine First Name and Last Name during PDF rendering.
@@ -831,6 +867,8 @@ export default function TemplateEditor() {
                                       ? "photo"
                                       : elementForm.type === "manufacture_date"
                                       ? "manufacture_date"
+                                      : elementForm.type === "nic"
+                                      ? "nic"
                                       : element.field_name || null,
                               mapping:
                                   elementForm.type === "photo"
@@ -841,6 +879,11 @@ export default function TemplateEditor() {
                                       : elementForm.type === "manufacture_date"
                                       ? {
                                             source_field: "manufacture_date",
+                                            is_required: false,
+                                        }
+                                      : elementForm.type === "nic"
+                                      ? {
+                                            source_field: "nic",
                                             is_required: false,
                                         }
                                       : element.mapping || null,
@@ -881,6 +924,8 @@ export default function TemplateEditor() {
                     ? "photo"
                     : elementForm.type === "manufacture_date"
                     ? "manufacture_date"
+                    : elementForm.type === "nic"
+                    ? "nic"
                     : null,
             mapping:
                 elementForm.type === "photo"
@@ -888,6 +933,11 @@ export default function TemplateEditor() {
                     : elementForm.type === "manufacture_date"
                     ? {
                           source_field: "manufacture_date",
+                          is_required: false,
+                      }
+                    : elementForm.type === "nic"
+                    ? {
+                          source_field: "nic",
                           is_required: false,
                       }
                     : null,
@@ -901,6 +951,8 @@ export default function TemplateEditor() {
             text:
                 elementForm.type === "student_name"
                     ? "First Name Last Name"
+                    : elementForm.type === "nic"
+                    ? "NIC"
                     : elementForm.text || defaults.text,
             visible: true,
             z_index: elements.length + 1,
@@ -1172,6 +1224,8 @@ export default function TemplateEditor() {
                     field_name:
                         element.type === "manufacture_date"
                             ? "manufacture_date"
+                            : element.type === "nic"
+                            ? "nic"
                             : element.field_name || null,
 
                     x_mm: Number(element.x_mm),
@@ -1219,6 +1273,11 @@ export default function TemplateEditor() {
                         element.type === "manufacture_date"
                             ? {
                                   source_field: "manufacture_date",
+                                  is_required: false,
+                              }
+                            : element.type === "nic"
+                            ? {
+                                  source_field: "nic",
                                   is_required: false,
                               }
                             : element.mapping
@@ -1666,7 +1725,7 @@ export default function TemplateEditor() {
                                         )
                                     }
                                     className={`absolute select-none overflow-visible ${
-                                        ["static_text", "student_name", "student_id", "manufacture_date"].includes(element.type)
+                                        ["static_text", "student_name", "student_id", "nic", "manufacture_date"].includes(element.type)
                                             ? ""
                                             : "border border-dashed px-1"
                                     } ${
@@ -1712,7 +1771,11 @@ export default function TemplateEditor() {
                                         lineHeight:
                                             element.type === "manufacture_date"
                                                 ? 1
-                                                : undefined,
+                                                : 1,
+                                        textAlign:
+                                            element.properties?.text_alignment || "left",
+                                        fontWeight:
+                                            element.properties?.font_weight || "normal",
 
                                         fontSize: `${element.properties?.font_size || 12}px`,
                                         color: element.properties?.text_color || "#111827",
@@ -1756,6 +1819,8 @@ export default function TemplateEditor() {
                                                 ? getManufactureDatePreviewText()
                                                 : element.type === "student_name"
                                                 ? "First Name Last Name"
+                                                : element.type === "nic"
+                                                ? "NIC"
                                                 : element.type === "static_text"
                                                 ? (element.text ||
                                                       element.properties?.text ||
@@ -1842,6 +1907,10 @@ export default function TemplateEditor() {
                                     Student ID
                                 </option>
 
+                                <option value="nic">
+                                    NIC
+                                </option>
+
                                 <option value="manufacture_date">
                                     Manufacture Date
                                 </option>
@@ -1866,9 +1935,12 @@ export default function TemplateEditor() {
                                 value={elementForm.text}
                                 onChange={handleFormChange}
                                 placeholder="Display text"
-                                disabled={elementForm.type === "student_name"}
+                                disabled={
+                                    elementForm.type === "student_name" ||
+                                    elementForm.type === "nic"
+                                }
                                 className={`w-full rounded-lg border border-slate-300 px-3 py-2 ${
-                                    elementForm.type === "student_name"
+                                    elementForm.type === "student_name" || elementForm.type === "nic"
                                         ? "cursor-not-allowed bg-slate-100 text-slate-500"
                                         : ""
                                 }`}
@@ -1883,6 +1955,18 @@ export default function TemplateEditor() {
 
                                 <div className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700">
                                     First Name + Last Name
+                                </div>
+                            </div>
+                        )}
+
+                        {elementForm.type === "nic" && (
+                            <div>
+                                <label className="mb-1 block text-sm font-medium text-slate-700">
+                                    NIC Source
+                                </label>
+
+                                <div className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700">
+                                    Student data → NIC
                                 </div>
                             </div>
                         )}
@@ -1926,6 +2010,38 @@ export default function TemplateEditor() {
                                 onChange={handleFormChange}
                                 className="w-full rounded-lg border border-slate-300 px-3 py-2"
                             />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <label className="mb-1 block text-sm font-medium text-slate-700">
+                                    Text Alignment
+                                </label>
+                                <select
+                                    name="text_alignment"
+                                    value={elementForm.text_alignment || "left"}
+                                    onChange={handleFormChange}
+                                    className="w-full rounded-lg border border-slate-300 px-3 py-2"
+                                >
+                                    <option value="left">Left</option>
+                                    <option value="center">Center</option>
+                                    <option value="right">Right</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="mb-1 block text-sm font-medium text-slate-700">
+                                    Font Weight
+                                </label>
+                                <select
+                                    name="font_weight"
+                                    value={elementForm.font_weight || "normal"}
+                                    onChange={handleFormChange}
+                                    className="w-full rounded-lg border border-slate-300 px-3 py-2"
+                                >
+                                    <option value="normal">Normal</option>
+                                    <option value="bold">Bold</option>
+                                </select>
+                            </div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-3">
