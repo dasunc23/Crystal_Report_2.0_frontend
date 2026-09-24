@@ -37,6 +37,10 @@ const DEFAULT_FORM = {
     background_color: "#ffffff",
     opacity: 1,
     show_background: true,
+
+    // Student Name mapping controls how the dynamic name is built.
+    // "first_last" combines Excel First Name + Last Name with one space.
+    name_mapping: "first_last",
 };
 
 const ELEMENT_DEFAULTS = {
@@ -53,16 +57,24 @@ const ELEMENT_DEFAULTS = {
         show_background: true,
     },
     student_name: {
-        width_mm: 55,
-        height_mm: 8,
-        text: "Student Name",
+        width_mm: 39,
+        height_mm: 3,
+        // Student Name is dynamic. The actual value comes from the imported
+        // student record and is never stored as literal template text.
+        text: "First Name Last Name",
+        font_size: 12,
+        text_color: "#111827",
+        background_color: "#ffffff",
+        opacity: 1,
         show_background: false,
+        // Default mapping for the new Excel structure.
+        name_mapping: "first_last",
     },
     student_id: {
-        width_mm: 45,
-        height_mm: 8,
+        width_mm: 39,
+        height_mm: 5,
         text: "Student ID",
-        font_size: 12,
+        font_size: 8,
         text_color: "#111827",
         background_color: "#ffffff",
         opacity: 1,
@@ -228,7 +240,17 @@ function normalizeElement(element) {
             // Use the normalized type here because API responses may use
             // element_type instead of type.
             show_background: type === "manufacture_date" ? false : true,
+
+            // Student Name defaults to First Name + Last Name. This is stored
+            // in properties so the backend knows how the dynamic value should
+            // be resolved when the PDF is generated.
+            name_mapping:
+                type === "student_name"
+                    ? "first_last"
+                    : undefined,
+
             ...(element.properties || {}),
+
             ...(type === "manufacture_date"
                 ? { opacity: 1, show_background: false }
                 : {}),
@@ -407,6 +429,13 @@ export default function TemplateEditor() {
                 selectedElement.type === "manufacture_date"
                     ? false
                     : selectedElement.properties?.show_background !== false,
+
+            // Only Student Name uses this mapping. Existing elements simply
+            // keep the default value so the form remains controlled.
+            name_mapping:
+                selectedElement.type === "student_name"
+                    ? selectedElement.properties?.name_mapping || "first_last"
+                    : "first_last",
         });
     }, [selectedElement, activeSide]);
 
@@ -625,12 +654,23 @@ export default function TemplateEditor() {
                     };
                 }
 
-                if (["text_color", "background_color", "opacity", "show_background"].includes(field)) {
+                if (
+                    [
+                        "text_color",
+                        "background_color",
+                        "opacity",
+                        "show_background",
+                        "name_mapping",
+                    ].includes(field)
+                ) {
                     return {
                         ...element,
                         properties: {
                             ...(element.properties || {}),
-                            [field]: field === "opacity" ? Number(value) : value,
+                            [field]:
+                                field === "opacity"
+                                    ? Number(value)
+                                    : value,
                         },
                     };
                 }
@@ -706,11 +746,32 @@ export default function TemplateEditor() {
                 type === "manufacture_date"
                     ? false
                     : defaults.show_background !== false,
+
+            // Student Name uses First Name + Last Name by default.
+            name_mapping:
+                type === "student_name"
+                    ? elementForm.name_mapping || defaults.name_mapping || "first_last"
+                    : elementForm.name_mapping || "first_last",
         };
         setElementForm(nextForm);
         if (selectedElementId) {
             Object.entries(nextForm).forEach(([field, value]) => {
-                if (["name", "type", "side", "x_mm", "y_mm", "width_mm", "height_mm", "text", "font_size", "text_color", "background_color", "opacity", "show_background"].includes(field)) {
+                if ([
+                        "name",
+                        "type",
+                        "side",
+                        "x_mm",
+                        "y_mm",
+                        "width_mm",
+                        "height_mm",
+                        "text",
+                        "font_size",
+                        "text_color",
+                        "background_color",
+                        "opacity",
+                        "show_background",
+                        "name_mapping",
+                    ].includes(field)) {
                     updateSelectedElement(field, value);
                 }
             });
@@ -740,6 +801,13 @@ export default function TemplateEditor() {
                 elementForm.type === "manufacture_date"
                     ? false
                     : elementForm.show_background !== false,
+
+            // Store the Student Name mapping with the element so the backend
+            // can combine First Name and Last Name during PDF rendering.
+            name_mapping:
+                elementForm.type === "student_name"
+                    ? elementForm.name_mapping || "first_last"
+                    : undefined,
         };
 
         // When an element is selected, this button updates that element instead
@@ -828,7 +896,12 @@ export default function TemplateEditor() {
             y_mm: Number(elementForm.y_mm) || 0,
             width_mm: Number(elementForm.width_mm) || defaults.width_mm,
             height_mm: Number(elementForm.height_mm) || defaults.height_mm,
-            text: elementForm.text || defaults.text,
+            // Student Name is dynamic and should not be saved as literal
+            // sample text. The preview uses a friendly placeholder instead.
+            text:
+                elementForm.type === "student_name"
+                    ? "First Name Last Name"
+                    : elementForm.text || defaults.text,
             visible: true,
             z_index: elements.length + 1,
             properties: nextProperties,
@@ -1114,6 +1187,17 @@ export default function TemplateEditor() {
 
                     properties: {
                         ...(element.properties || {}),
+
+                        // Student Name is dynamic. Keep the selected mapping
+                        // and do not save the preview/sample text as the value.
+                        ...(element.type === "student_name"
+                            ? {
+                                  name_mapping:
+                                      element.properties?.name_mapping ||
+                                      "first_last",
+                              }
+                            : {}),
+
                         ...(element.type === "manufacture_date"
                             ? {
                                   // Store only the dynamic placeholder. The
@@ -1122,6 +1206,8 @@ export default function TemplateEditor() {
                                   opacity: 1,
                                   show_background: false,
                               }
+                            : element.type === "student_name"
+                            ? {}
                             : element.text
                             ? { text: element.text }
                             : {}),
@@ -1650,8 +1736,8 @@ export default function TemplateEditor() {
                                             ||| || |||| |||
                                         </div>
                                     ) : element.type === "student_id" ? (
-                                        <div className="grid h-full w-full grid-cols-8 gap-px">
-                                            {Array.from({ length: 8 }).map((_, index) => (
+                                        <div className="grid h-full w-full grid-cols-9 gap-0">
+                                            {Array.from({ length: 9 }).map((_, index) => (
                                                 <div
                                                     key={index}
                                                     className="flex items-center justify-center border border-slate-400 text-[0.65em]"
@@ -1668,7 +1754,9 @@ export default function TemplateEditor() {
                                         <span>
                                             {element.type === "manufacture_date"
                                                 ? getManufactureDatePreviewText()
-                                                : element.type === "student_name" || element.type === "static_text"
+                                                : element.type === "student_name"
+                                                ? "First Name Last Name"
+                                                : element.type === "static_text"
                                                 ? (element.text ||
                                                       element.properties?.text ||
                                                       getElementLabel(element))
@@ -1778,9 +1866,26 @@ export default function TemplateEditor() {
                                 value={elementForm.text}
                                 onChange={handleFormChange}
                                 placeholder="Display text"
-                                className="w-full rounded-lg border border-slate-300 px-3 py-2"
+                                disabled={elementForm.type === "student_name"}
+                                className={`w-full rounded-lg border border-slate-300 px-3 py-2 ${
+                                    elementForm.type === "student_name"
+                                        ? "cursor-not-allowed bg-slate-100 text-slate-500"
+                                        : ""
+                                }`}
                             />
                         </div>
+
+                        {elementForm.type === "student_name" && (
+                            <div>
+                                <label className="mb-1 block text-sm font-medium text-slate-700">
+                                    Student Name Source
+                                </label>
+
+                                <div className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700">
+                                    First Name + Last Name
+                                </div>
+                            </div>
+                        )}
 
                         <div className="grid grid-cols-2 gap-3">
                             {[
