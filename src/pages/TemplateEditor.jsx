@@ -53,8 +53,8 @@ const ELEMENT_DEFAULTS = {
         show_background: true,
     },
     barcode: {
-        width_mm: 43,
-        height_mm: 12,
+        width_mm: 40,
+        height_mm: 15,
         text: "",
         show_background: true,
     },
